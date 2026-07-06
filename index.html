@@ -712,7 +712,7 @@
     if(!p){ return `<button type="button" class="prow empty ${ROLECLASS[zone]} ${S.sel?'tgt':''}" data-slot="${k}"><span class="p-chip">${label}</span><span class="p-name-col"><span class="p-nm">${S.sel?'Tap to fill':'Empty'}</span></span></button>`; }
     return `<button type="button" class="prow ${ROLECLASS[zone]}${stateCls(p)}${inelClass(p)}" data-id="${p.id}">
       <span class="p-chip">${label}</span>
-      <span class="p-name-col"><span class="p-nm">${esc(p.name)}${femHTML(p)}</span><span class="r-sub">${owedTxt(p,curT)}</span></span>
+      <span class="p-name-col"><span class="p-nm">${esc(p.name)}${femHTML(p)}</span><span class="r-sub">Total <b class="p-tv mono">${fmt(p.sec)}</b></span></span>
       <span class="p-status">${courtStatus(p,curRec)}</span>
       <span class="r-clock"><span class="p-cl">${gk?'In goal':'Shift'}</span><span class="p-cv mono${overShift(p)?' over':''}">${fmt(gk?p.posSec:p.shiftSec)}</span></span>
     </button>`;
@@ -721,7 +721,7 @@
     const zone=domZone(p)||'att';
     return `<button type="button" class="prow ${ROLECLASS[zone]}${stateCls(p)}${inelClass(p)}" data-id="${p.id}">
       <span class="p-chip">${BENCH_LBL[zone]}</span>
-      <span class="p-name-col"><span class="p-nm">${esc(p.name)}${femHTML(p)}</span><span class="r-sub">${owedTxt(p,curT)}</span></span>
+      <span class="p-name-col"><span class="p-nm">${esc(p.name)}${femHTML(p)}</span><span class="r-sub">Total <b class="p-tv mono">${fmt(p.sec)}</b></span></span>
       <span class="p-status">${benchStatus(p,curRec)}</span>
       <span class="r-clock"><span class="p-cl">Rest</span><span class="p-cv mono">${fmt(p.restSec)}</span></span>
     </button>`;
@@ -771,7 +771,6 @@
           const gk=isGK(p);
           const cv=el.querySelector('.p-cv'); if(cv){ cv.textContent=fmt(gk?p.posSec:p.shiftSec); cv.classList.toggle('over', overShift(p)); }
           const tv=el.querySelector('.p-tv'); if(tv)tv.textContent=fmt(p.sec);
-          const rs=el.querySelector('.r-sub'); if(rs)rs.textContent=owedTxt(p,curT);
           const zb=el.querySelector('.p-zbar');
           if(zb){ const total=p.sec||0; zb.querySelectorAll('i').forEach(seg=>{ seg.style.width=(total>0?((p.zone[seg.dataset.z]||0)/total)*100:0)+'%'; }); }
           if(rec&&rec.outId===p.id){ const off=el.querySelector('.pill.off'); if(off){ off.textContent='Off · '+dueTxt(rec); off.classList.toggle('due',rec.dueIn<=0); } }
@@ -779,7 +778,6 @@
         } else {
           const el=$('#benchGrid').querySelector('[data-id="'+p.id+'"]'); if(!el)return;
           const cv=el.querySelector('.p-cv'); if(cv)cv.textContent=fmt(p.restSec);
-          const rs=el.querySelector('.r-sub'); if(rs)rs.textContent=owedTxt(p,curT);
           if(rec&&rec.inId===p.id){ const btn=el.querySelector('.subbtn'); if(btn){ btn.textContent='⇄ '+P(rec.outId).name+' · '+dueTxt(rec); btn.classList.toggle('due',rec.dueIn<=0); btn.classList.toggle('paused',!S.running); } }
         }
       });
