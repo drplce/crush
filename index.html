@@ -350,7 +350,48 @@
   .tl-del:active{transform:scale(.9);}
 
   /* roster editor */
-  .roster-row{display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line);}
+  .roster-entry{border-bottom:1px solid var(--line); padding-bottom:6px;}
+  .roster-row{display:flex; align-items:center; gap:8px; padding:7px 0;}
+  .rat-row{display:flex; gap:6px; padding:0 0 4px;}
+  .rat-row .ratbtn{flex:1; position:relative; height:36px; border:1px solid var(--line); border-radius:9px; background:var(--board); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; overflow:hidden;}
+  .rat-row .rk{font-size:8px; letter-spacing:.1em; font-weight:700; color:var(--muted-2);}
+  .rat-row .rv{font-size:14px; font-weight:700; font-family:var(--mono); color:var(--text); line-height:1.1;}
+  .rat-row .rbar{position:absolute; left:0; bottom:0; height:3px; background:var(--acc); opacity:.7;}
+
+  /* ---------- Strategy planner ---------- */
+  .st-cmp{display:flex; flex-direction:column; gap:6px; margin:4px 0 6px;}
+  .st-head{display:grid; grid-template-columns:1fr 52px 40px 40px 38px; gap:8px; padding:0 10px; font-size:8px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted-2); font-weight:700;}
+  .st-head span:not(:first-child){text-align:right;}
+  .st-row{display:grid; grid-template-columns:1fr 52px 40px 40px 38px; gap:8px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:11px; background:var(--panel); text-align:left; width:100%;}
+  .st-row.sel{box-shadow:inset 0 0 0 2px var(--acc);}
+  .st-row.active{border-color:var(--acc);}
+  .st-nm{font-weight:650; font-size:14px; color:var(--text); display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .st-nm .abadge{font-size:8px; letter-spacing:.06em; text-transform:uppercase; color:var(--acc-ink); background:var(--acc); padding:2px 5px; border-radius:5px; font-weight:700; flex:none;}
+  .st-m{font-family:var(--mono); font-size:12px; color:var(--muted); text-align:right;}
+  .st-m.best{color:var(--acc); font-weight:700;}
+  .st-ed{border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:4px; background:var(--board);}
+  .ed-row{display:flex; align-items:center; gap:8px; margin-bottom:11px;}
+  .ed-row.top{align-items:flex-start;}
+  .ed-row label{font-size:10px; color:var(--muted-2); font-weight:700; letter-spacing:.06em; text-transform:uppercase; flex:0 0 74px;}
+  .ed-in{flex:1; height:40px; padding:0 12px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--text); font-size:15px; font-family:var(--sans);}
+  .ed-num{width:74px; height:40px; padding:0 10px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--text); font-size:15px;}
+  .ed-unit{font-size:11px; color:var(--muted-2);}
+  .ed-col{flex:1; display:flex; flex-direction:column; gap:8px; min-width:0;}
+  .ed-btns{display:flex; gap:6px; flex-wrap:wrap;}
+  .seg-tog{display:flex; border:1px solid var(--line); border-radius:9px; overflow:hidden;}
+  .seg-tog button{padding:9px 13px; background:var(--panel); color:var(--muted); font-size:12px; font-weight:650;}
+  .seg-tog button.on{background:var(--acc); color:var(--acc-ink);}
+  .baslab{display:flex; justify-content:space-between; align-items:center; margin:-4px 0 12px 82px; font-size:10px; color:var(--muted-2); letter-spacing:.04em;}
+  .baslab .mono{color:var(--acc); font-weight:700;}
+  input[type=range]{flex:1; accent-color:var(--acc); height:26px;}
+  .st-slots{display:flex; flex-wrap:wrap; gap:6px;}
+  .st-slot{display:flex; align-items:center; gap:6px; padding:7px 9px; border:1px solid var(--line); border-radius:9px; background:var(--panel); font-size:12.5px; color:var(--text);}
+  .st-slot b{color:var(--muted-2); font-size:9px; letter-spacing:.06em; text-transform:uppercase;}
+  .ministr{height:38px; padding:0 12px; border-radius:9px; border:1px solid var(--line); background:var(--panel); color:var(--muted); font-size:12px; font-weight:650;}
+  .ministr.on{background:var(--acc); color:var(--acc-ink); border-color:transparent;}
+  .ministr.danger{color:var(--att); border-color:rgba(255,115,104,.4); margin-left:auto;}
+  .ministr.arm{color:var(--att) !important; border-color:rgba(255,115,104,.55) !important; font-weight:700;}
+  .st-actions{display:flex; gap:6px; align-items:center; margin-top:2px;}
   .roster-row input[type=text]{height:44px; padding:0 12px; border-radius:10px; background:var(--board); border:1px solid var(--line); color:var(--text); font-size:16px; font-family:var(--sans);}
   /* fixed-width columns so every row's name field, sex, position and remove line up */
   .roster-row input.nm{flex:1 1 auto; min-width:0; width:0;}
@@ -455,6 +496,14 @@
   <div class="eyebrow plan-label">Targets · tap a position: normal → prefer ★ → avoid ✕</div>
   <div id="planTable"></div>
   <div class="sheet-foot"><button type="button" id="planCopy">Copy game</button><button type="button" id="planDone">Done</button></div>
+</div></div>
+
+<div class="scrim" id="stratScrim"><div class="sheet">
+  <h2>Strategy</h2><p class="sub" id="stratSub"></p>
+  <div id="stratList"></div>
+  <div class="addrow"><button type="button" id="stratNew">+ New plan</button></div>
+  <div id="stratEdit"></div>
+  <div class="sheet-foot"><button type="button" id="stratCopy">Copy plan</button><button type="button" id="stratDone">Done</button></div>
 </div></div>
 
 <div class="scrim" id="scorerScrim"><div class="sheet">
@@ -574,7 +623,8 @@
   let S;
   let fmOpen=false; // transient UI state — deliberately outside S so it is never persisted
   const newPref=()=>({goal:1,def:1,mid:1,att:1});
-  const newPlayer=(id,name,pos,sex)=>({id,name,pos,sex:sex||'m',sec:0,shiftSec:0,posSec:0,restSec:0,goals:0,zone:{goal:0,def:0,mid:0,att:0},seg:[],pref:newPref()});
+  const newRat=()=>({att:3,def:3,gk:3,fit:3});   // 1–5 skill/fitness ratings — the framework the strategy planner weights by
+  const newPlayer=(id,name,pos,sex)=>({id,name,pos,sex:sex||'m',sec:0,shiftSec:0,posSec:0,restSec:0,goals:0,zone:{goal:0,def:0,mid:0,att:0},seg:[],rat:newRat(),pref:newPref()});
   const fresh=()=>({
     players:[
       newPlayer(1,'Mia','F1','f'), newPlayer(2,'Jack','F2'),
@@ -584,7 +634,8 @@
     ],
     scoreUs:0,scoreThem:0, running:false,half:1,elapsed:0,
     halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, lastSub:0, suggest:false, nextId:9, sel:null, history:[],
-    events:[], nextEid:1, phase:'h1', chimed:false, formation:'2-2', h1Secs:0
+    events:[], nextEid:1, phase:'h1', chimed:false, formation:'2-2', h1Secs:0,
+    strategies:[], activeStrat:null, nextStratId:1
   });
 
   function load(){
@@ -597,8 +648,9 @@
         S.events=S.events||[]; S.nextEid=S.nextEid||1;
         S.phase=S.phase||(S.half===2?'h2':'h1'); S.chimed=S.chimed||false;
         S.formation=S.formation||'2-2';
-        S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; if(!Array.isArray(p.seg))p.seg=[]; p.pref=Object.assign(newPref(),p.pref||{}); if(p.sex!=='f')p.sex='m';});
+        S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; if(!Array.isArray(p.seg))p.seg=[]; p.rat=Object.assign(newRat(),p.rat||{}); p.pref=Object.assign(newPref(),p.pref||{}); if(p.sex!=='f')p.sex='m';});
         if(S.h1Secs===undefined)S.h1Secs=0;
+        if(!Array.isArray(S.strategies))S.strategies=[]; if(S.activeStrat===undefined)S.activeStrat=null; if(!S.nextStratId)S.nextStratId=1;
         if(S.minF===undefined)S.minF=2;
         if(S.lastSub===undefined)S.lastSub=0;
         if(S.suggest===undefined)S.suggest=false;
@@ -645,10 +697,15 @@
   function setRunning(run){ if(S.phase!=='h1'&&S.phase!=='h2')return; S.running=run; if(run){if(!timer)timer=setInterval(tick,1000);} else {clearInterval(timer);timer=null;} render(); save(); }
   function halfAction(){
     // snapshot the phase state so the transition can be undone (footer Undo or the toast)
-    S.history.push({type:'phase',prev:{phase:S.phase,half:S.half,elapsed:S.elapsed,chimed:S.chimed,running:S.running}});
+    const hist={type:'phase',prev:{phase:S.phase,half:S.half,elapsed:S.elapsed,chimed:S.chimed,running:S.running}};
+    S.history.push(hist);
     if(S.history.length>25)S.history.shift();
     if(S.phase==='h1'){ setRunning(false); S.phase='ht'; S.h1Secs=S.elapsed; beep(); toast('Half-time — '+fmt(S.elapsed)+' played this half',true); }
-    else if(S.phase==='ht'){ S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; S.lastSub=S.halfLen*60; setRunning(true); toast('2nd half started',true); }
+    else if(S.phase==='ht'){
+      // everyone rests through the ~3-min break, so shift/position timers start fresh for the 2nd half
+      hist.shifts=S.players.map(p=>({id:p.id,shiftSec:p.shiftSec,posSec:p.posSec}));
+      S.players.forEach(p=>{ p.shiftSec=0; p.posSec=0; });
+      S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; S.lastSub=S.halfLen*60; setRunning(true); toast('2nd half started — shift clocks reset',true); }
     else if(S.phase==='h2'){ setRunning(false); S.phase='ft'; beep(); toast('Full-time — '+S.scoreUs+'–'+S.scoreThem,true); }
     render(); save();
   }
@@ -837,7 +894,7 @@
     if(h.type==='move'){ h.snap.forEach(s=>{const p=P(s.id); if(!p)return; p.pos=(s.pos&&!slotDef(s.pos))?null:s.pos; p.shiftSec=s.shiftSec; p.posSec=s.posSec; p.restSec=s.restSec;}); if(h.eid){const i=S.events.findIndex(e=>e.eid===h.eid); if(i>=0)S.events.splice(i,1);} }
     else if(h.type==='for'){ const ev=S.events.find(e=>e.eid===h.eid); if(ev){const p=P(ev.pid); if(p&&p.goals)p.goals--;} S.scoreUs--; const i=S.events.findIndex(e=>e.eid===h.eid); if(i>=0)S.events.splice(i,1); }
     else if(h.type==='against'){ S.scoreThem--; const i=S.events.findIndex(e=>e.eid===h.eid); if(i>=0)S.events.splice(i,1); }
-    else if(h.type==='phase'){ const p=h.prev; S.phase=p.phase; S.half=p.half; S.elapsed=p.elapsed; S.chimed=p.chimed; if(p.phase==='h1')S.h1Secs=0; S.sel=null; $('#toast').classList.remove('show'); setRunning(p.running); save(); return; }
+    else if(h.type==='phase'){ const p=h.prev; S.phase=p.phase; S.half=p.half; S.elapsed=p.elapsed; S.chimed=p.chimed; if(p.phase==='h1')S.h1Secs=0; if(h.shifts)h.shifts.forEach(s=>{const pl=P(s.id); if(pl){pl.shiftSec=s.shiftSec; pl.posSec=s.posSec;}}); S.sel=null; $('#toast').classList.remove('show'); setRunning(p.running); save(); return; }
     S.sel=null; $('#toast').classList.remove('show'); render(); save();
   }
 
@@ -1093,12 +1150,143 @@
   function fbCopy(text,cb){ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.top='-1000px'; document.body.appendChild(ta); ta.focus(); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); cb&&cb(); }
   function copyGame(){ copyText(JSON.stringify(gameJSON(),null,2), 'Game data copied — paste to save tonight’s game'); }
 
+  /* ============================ STRATEGY PLANNER ============================
+     Deterministic forward-projection of the WHOLE game from kickoff for a given
+     plan (start line, shift length, keeper policy, rotate individually/in pairs,
+     and an Even-time↔Win balance). Ratings on each player feed the "win" side;
+     with neutral ratings plans differ only on structure & fairness — the seam
+     ratings weighting plugs into later, exactly as designed. */
+  let selStrat=null;
+  const RATATTR={goal:'gk',def:'def',att:'att'};
+  function fitFor(p,z){ const r=Object.assign(newRat(),p&&p.rat); if(z==='goal')return r.gk; if(z==='def')return r.def; if(z==='mid')return (r.att+r.def)/2; return r.att; }
+  function currentStarters(){ const st={}; slotDefs().forEach(s=>{ const p=inSlot(s.k); if(p)st[s.k]=p.id; }); return st; }
+  function autoStarters(){ const used=new Set(), st={}; slotDefs().forEach(s=>{ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} }); return st; }
+  function defaultStarters(){ const cur=currentStarters(); return Object.keys(cur).length?cur:autoStarters(); }
+  function newStrategy(name){ return {id:S.nextStratId++, name:name||'Plan', unit:'individual', shiftSec:S.shiftT||180, gkSec:S.gkT||300, gkPlan:'rotate', bias:0.5, starters:defaultStarters()}; }
+  const curStrat=()=>S.strategies.find(x=>x.id===selStrat);
+
+  function simulate(strat){
+    const halfLen=S.halfLen*60, totalGame=halfLen*2;
+    const C=Math.max(30, strat.shiftSec||S.shiftT||180), GKC=Math.max(60, strat.gkSec||S.gkT||300);
+    const bias=Math.max(0,Math.min(1, strat.bias==null?0.5:strat.bias));
+    const unit=strat.unit==='line'?'line':'individual';
+    const gkRotate=(strat.gkPlan||'rotate')!=='fixed';
+    const T=computeTargets(), hasGoal=!!T.zs.goal, slots=slotDefs();
+    const st={}; S.players.forEach(p=>st[p.id]={pos:null,sec:0,shift:0,goal:0});
+    const used=new Set(), starters=strat.starters||{};
+    slots.forEach(s=>{ const pid=starters[s.k]; if(pid!=null&&st[pid]&&!used.has(pid)){ st[pid].pos=s.k; used.add(pid);} });
+    slots.forEach(s=>{ if(!S.players.some(p=>st[p.id].pos===s.k)){ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[c.id].pos=s.k; used.add(c.id);} } });
+    const femOn=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
+    const legal=(inP,outP)=>{ if(!S.minF)return true; const cur=femOn(); const nx=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return nx>=S.minF||nx>=cur; };
+    const owed=id=>T.tgt[id]-st[id].sec;
+    const scoreIn=(p,z)=>{ const owedN=Math.max(-1.2,Math.min(1.2, owed(p.id)/(T.tgt[p.id]||600))); const fitN=(fitFor(p,z)-3)/2; return (1-bias)*owedN + bias*fitN + owedN*1e-3; };
+    let area=0, earlyArea=0, lateArea=0; const W=Math.min(180, halfLen);
+    const teamStrength=()=>S.players.reduce((s,p)=>s+(st[p.id].pos?fitFor(p,zoneOf(st[p.id].pos)):0),0);
+    const ov=(a,b,c,d)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
+    let prev=0;
+    const advance=to=>{ const step=to-prev; if(step>0){ const strg=teamStrength(); area+=step*strg; earlyArea+=ov(prev,to,0,W)*strg; lateArea+=ov(prev,to,totalGame-W,totalGame)*strg; S.players.forEach(p=>{const s=st[p.id]; if(s.pos){s.sec+=step; s.shift+=step; if(zoneOf(s.pos)==='goal')s.goal+=step;}}); prev=to; } };
+    const events=[];
+    const rotateOnce=()=>{
+      const bench=S.players.filter(p=>!st[p.id].pos); if(!bench.length)return false;
+      const mustFixFem=S.minF>0&&femOn()<S.minF&&bench.some(b=>b.sex==='f');
+      let outs=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal');
+      if(mustFixFem) outs=outs.filter(p=>p.sex!=='f');
+      outs.sort((a,b)=>st[b.id].shift-st[a.id].shift||a.id-b.id);
+      for(const out of outs){ const z=zoneOf(st[out.id].pos);
+        const pool=(mustFixFem?bench.filter(b=>b.sex==='f'):bench).filter(b=>legal(b,out));
+        if(!pool.length)continue;
+        pool.sort((a,b)=>scoreIn(b,z)-scoreIn(a,z)||a.id-b.id);
+        const inP=pool[0], slot=st[out.id].pos;
+        events.push({t:Math.round(prev), half:prev<halfLen?1:2, kind:'sub', inId:inP.id, outId:out.id, slot});
+        st[inP.id].pos=slot; st[inP.id].shift=0; st[out.id].pos=null; st[out.id].shift=0; return true;
+      }
+      return false;
+    };
+    let subB=C, gkB=hasGoal?GKC:Infinity, htDone=false, guard=0;
+    while(guard++<400){
+      const htAt=htDone?Infinity:halfLen, at=Math.min(subB,gkB,htAt);
+      if(at>=totalGame-10) break;
+      advance(at);
+      if(at===htAt){ S.players.forEach(p=>st[p.id].shift=0); htDone=true; subB=halfLen+C; gkB=hasGoal?halfLen+GKC:Infinity; continue; }
+      if(hasGoal&&gkRotate&&at===gkB){
+        const gk=S.players.find(p=>st[p.id].pos&&zoneOf(st[p.id].pos)==='goal');
+        const cand=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal'&&p.id!==(gk&&gk.id)).sort((a,b)=>st[a.id].goal-st[b.id].goal||a.id-b.id)[0];
+        if(gk&&cand){ const g=st[gk.id].pos,c=st[cand.id].pos; st[gk.id].pos=c; st[cand.id].pos=g; st[gk.id].shift=0; st[cand.id].shift=0; events.push({t:Math.round(prev),half:prev<halfLen?1:2,kind:'gk',inId:cand.id,outId:gk.id}); }
+        gkB=at+GKC; continue;
+      }
+      rotateOnce(); if(unit==='line') rotateOnce();   // "in pairs" = two changes at the same stoppage
+      subB=at+C;
+    }
+    advance(totalGame);
+    const secs=S.players.map(p=>({id:p.id, sec:st[p.id].sec, goal:st[p.id].goal}));
+    const on=secs.map(s=>s.sec), nOn=slots.length||5;
+    const metrics={ spread:on.length?Math.max(...on)-Math.min(...on):0, avgStr:(area/totalGame)/nOn, keyStr:((earlyArea+lateArea)/(2*W))/nOn, subs:events.filter(e=>e.kind==='sub').length, gkSwaps:events.filter(e=>e.kind==='gk').length };
+    return {strat, events, secs, halfLen, totalGame, metrics};
+  }
+
+  function cycleStarter(s,k){ s.starters=Object.assign({},s.starters); const ids=S.players.map(p=>p.id); if(!ids.length)return; let i=s.starters[k]!=null?ids.indexOf(s.starters[k]):-1; i=(i+1)%ids.length; const cand=ids[i]; Object.keys(s.starters).forEach(kk=>{ if(kk!==k&&s.starters[kk]===cand) delete s.starters[kk]; }); s.starters[k]=cand; }
+  function applyStarters(starters){ if(!starters)return; S.players.forEach(p=>{p.pos=null;}); const used=new Set(); slotDefs().forEach(sl=>{ const pid=starters[sl.k]; const p=pid!=null?P(pid):null; if(p&&!used.has(p.id)){ p.pos=sl.k; p.posSec=0; p.shiftSec=0; used.add(p.id);} }); S.players.forEach(p=>{ if(!p.pos)p.restSec=p.restSec||0; }); }
+  function applyActive(s){ if(!s)return; S.shiftT=Math.max(30,s.shiftSec||S.shiftT); S.gkT=Math.max(30,s.gkSec||S.gkT); if(S.phase==='h1'&&S.elapsed===0&&!S.running){ applyStarters(s.starters); toast('Plan set active — start line & shift applied',false); } else { toast('Plan set active — shift & keeper timing applied',false); } render(); }
+
+  function stratJSON(s){ const sm=simulate(s);
+    return { app:'Crush Control · Strategy', name:s.name, formation:S.formation, halfMin:S.halfLen,
+      rotate:s.unit==='line'?'in pairs':'individually', shiftSec:s.shiftSec, keeperSec:s.gkSec, keeperPlan:s.gkPlan,
+      balanceWinPct:Math.round((s.bias==null?.5:s.bias)*100), minFemales:S.minF,
+      startLine:slotDefs().map(sl=>{const pid=(s.starters||{})[sl.k]; const p=pid!=null?P(pid):null; return {slot:sl.label, player:p?p.name:null};}),
+      projectedMinutes:sm.secs.map(x=>({name:P(x.id)?P(x.id).name:null, court:fmt(x.sec), inGoal:fmt(x.goal)})),
+      metrics:{minutesSpread:fmt(sm.metrics.spread), avgOnCourtRating:+sm.metrics.avgStr.toFixed(2), keyWindowRating:+sm.metrics.keyStr.toFixed(2), subs:sm.metrics.subs, keeperSwaps:sm.metrics.gkSwaps},
+      timetable:sm.events.map(e=>({half:e.half, time:short(e.half===2?e.t-sm.halfLen:e.t), change:e.kind==='gk'?`${P(e.inId).name} takes goal`:`${P(e.inId).name} for ${P(e.outId).name}`, slot:e.kind==='gk'?'GK':e.slot})) };
+  }
+
+  function openStrat(){ if(!S.strategies.length){ const s=newStrategy('Plan A'); S.strategies.push(s); selStrat=s.id; save(); } else if(!curStrat()) selStrat=S.strategies[0].id; renderStrat(); $('#stratScrim').classList.add('open'); }
+  function timetableHTML(sm){
+    const start=slotDefs().map(sl=>{ const pid=(sm.strat.starters||{})[sl.k]; const p=pid!=null?P(pid):null; return p?`${esc(p.name)} <b>${sl.label}</b>`:null; }).filter(Boolean).join(' · ');
+    let html=`<div class="gp"><div class="gp-start">Start — ${start||'set a start line'}</div>`;
+    if(!sm.events.length){ html+='<div class="plan-empty">No changes projected — everyone tracks to target.</div>'; }
+    else { let lh=0; sm.events.forEach(e=>{ if(e.half!==lh){ html+=`<div class="gp-half">${e.half===1?'1st half':'2nd half'}</div>`; lh=e.half; }
+      const tt=e.half===2?e.t-sm.halfLen:e.t;
+      const txt=e.kind==='gk'?`<b>${esc(P(e.inId).name)}</b> takes goal`:`<b>${esc(P(e.inId).name)}</b> for ${esc(P(e.outId).name)}`;
+      html+=`<div class="gpr"><span class="gt">${short(Math.max(0,tt))}</span><span class="gx">${txt}</span><span class="gs">${e.kind==='gk'?'GK':e.slot}</span></div>`; }); }
+    return html+'</div>';
+  }
+  function stratEditHTML(sm){
+    const s=sm.strat, act=S.activeStrat===s.id, biasPct=Math.round((s.bias==null?.5:s.bias)*100);
+    const slotChips=slotDefs().map(sl=>{ const pid=(s.starters||{})[sl.k]; const p=pid!=null?P(pid):null; return `<button type="button" class="st-slot" data-act="slot" data-slot="${sl.k}"><b>${sl.label}</b>${p?esc(p.name):'—'}</button>`; }).join('');
+    return `<div class="st-ed">
+      <div class="ed-row"><label>Name</label><input class="nm ed-in" type="text" value="${esc(s.name)}" data-f="name"></div>
+      <div class="ed-row"><label>Rotate</label><div class="seg-tog"><button type="button" data-act="unit" data-v="individual" class="${s.unit!=='line'?'on':''}">Individually</button><button type="button" data-act="unit" data-v="line" class="${s.unit==='line'?'on':''}">In pairs</button></div></div>
+      <div class="ed-row"><label>Shift</label><input class="mono ed-num" type="number" min="30" max="600" value="${s.shiftSec||S.shiftT}" data-f="shift"><span class="ed-unit">sec / change</span></div>
+      <div class="ed-row"><label>Keeper</label><div class="seg-tog"><button type="button" data-act="gk" data-v="rotate" class="${(s.gkPlan||'rotate')!=='fixed'?'on':''}">Rotate</button><button type="button" data-act="gk" data-v="fixed" class="${s.gkPlan==='fixed'?'on':''}">Fixed</button></div></div>
+      <div class="ed-row"><label>Balance</label><input type="range" min="0" max="100" step="5" value="${biasPct}" data-f="bias"></div>
+      <div class="baslab"><span>Even time</span><span class="mono">${biasPct}% win</span><span>Win</span></div>
+      <div class="ed-row top"><label>Start line</label><div class="ed-col"><div class="st-slots">${slotChips}</div><div class="ed-btns"><button type="button" class="ministr" data-act="auto">Auto by rating</button><button type="button" class="ministr" data-act="current">Use current lineup</button></div></div></div>
+      <div class="st-actions"><button type="button" class="ministr ${act?'on':''}" data-act="active">${act?'✓ Active plan':'Set as active'}</button><button type="button" class="ministr" data-act="dup">Duplicate</button><button type="button" class="ministr danger" data-act="del">Delete</button></div>
+      <div class="eyebrow plan-label" style="margin-top:12px">Timetable — who goes where, when</div>
+      ${timetableHTML(sm)}</div>`;
+  }
+  function renderStrat(){
+    $('#stratSub').textContent=`Compare plans across the full 2×${S.halfLen}:00 game${S.minF>0?` · min ${S.minF} ♀ on court`:''}. Player ratings (Roster) drive the “win” weighting.`;
+    if(!S.strategies.length){ $('#stratList').innerHTML='<div class="plan-empty">No plans yet — tap “New plan”.</div>'; $('#stratEdit').innerHTML=''; return; }
+    const sims=S.strategies.map(simulate);
+    const bSpread=Math.min(...sims.map(s=>s.metrics.spread)), bKey=Math.max(...sims.map(s=>s.metrics.keyStr)), bAvg=Math.max(...sims.map(s=>s.metrics.avgStr));
+    $('#stratList').innerHTML='<div class="st-cmp"><div class="st-head"><span>Plan</span><span>Spread</span><span>Avg</span><span>Key</span><span>Subs</span></div>'+sims.map(sm=>{ const s=sm.strat, m=sm.metrics, a=S.activeStrat===s.id;
+      return `<button type="button" class="st-row ${selStrat===s.id?'sel':''} ${a?'active':''}" data-sid="${s.id}">
+        <span class="st-nm">${a?'<span class="abadge">On</span>':''}${esc(s.name)}</span>
+        <span class="st-m ${m.spread===bSpread?'best':''}">${fmt(m.spread)}</span>
+        <span class="st-m ${Math.abs(m.avgStr-bAvg)<.01?'best':''}">${m.avgStr.toFixed(1)}</span>
+        <span class="st-m ${Math.abs(m.keyStr-bKey)<.01?'best':''}">${m.keyStr.toFixed(1)}</span>
+        <span class="st-m">${m.subs}</span></button>`; }).join('')+'</div>';
+    const sm=sims.find(x=>x.strat.id===selStrat)||sims[0]; selStrat=sm.strat.id;
+    $('#stratEdit').innerHTML=stratEditHTML(sm);
+  }
+
   /* burger menu (phone) */
   function openMenu(){
     const half={h1:'End 1st half',ht:'▶ Start 2nd half',h2:'End game',ft:null}[S.phase];
     let items='';
     if(half) items+=`<button type="button" class="menu-item ${S.phase==='ht'?'go':''}" data-act="half">${half}</button>`;
-    items+=`<button type="button" class="menu-item" data-act="plan">Game plan<span class="mi-sub">rotations &amp; targets</span></button>
+    items+=`<button type="button" class="menu-item" data-act="strategy">Strategy<span class="mi-sub">plan &amp; compare rotations</span></button>
+      <button type="button" class="menu-item" data-act="plan">Game plan<span class="mi-sub">rotations &amp; targets</span></button>
       <button type="button" class="menu-item" data-act="events">Events<span class="mi-sub">match timeline</span></button>
       <button type="button" class="menu-item" data-act="stats">Stats<span class="mi-sub">time &amp; zones</span></button>
       <button type="button" class="menu-item" data-act="roster">Roster &amp; Settings</button>`;
@@ -1158,14 +1346,20 @@
   /* roster editor */
   function setSugBtn(){ const b=$('#sugBtn'); b.textContent=S.suggest?'On':'Off'; b.classList.toggle('on',S.suggest); }
   function openRoster(){ $('#halfLen').value=S.halfLen; $('#shiftT').value=S.shiftT; $('#gkT').value=S.gkT; $('#minF').value=S.minF; setSugBtn(); drawRoster(); $('#rosterScrim').classList.add('open'); }
+  const RATLBL={att:'ATT',def:'DEF',gk:'GK',fit:'FIT'};
   function drawRoster(){
     $('#rosterBody').innerHTML=S.players.map(p=>{
       const lbl=p.pos||'Bench'; const cls='posbtn'+(p.pos?' is-on':'')+(p.pos==='GK'?' gk':'');
-      return `<div class="roster-row" data-id="${p.id}">
-        <input class="nm" type="text" value="${esc(p.name)}" data-f="name">
-        <button type="button" class="sexbtn ${p.sex==='f'?'f':''}" data-f="sex">${p.sex==='f'?'F':'M'}</button>
-        <button type="button" class="${cls}" data-f="pos">${lbl}</button>
-        <button type="button" class="rm" data-f="rm">✕</button></div>`;
+      const rat=Object.assign(newRat(),p.rat||{});
+      const rats=['att','def','gk','fit'].map(k=>`<button type="button" class="ratbtn" data-f="rat" data-k="${k}"><span class="rk">${RATLBL[k]}</span><span class="rv">${rat[k]}</span><span class="rbar" style="width:${rat[k]/5*100}%"></span></button>`).join('');
+      return `<div class="roster-entry">
+        <div class="roster-row" data-id="${p.id}">
+          <input class="nm" type="text" value="${esc(p.name)}" data-f="name">
+          <button type="button" class="sexbtn ${p.sex==='f'?'f':''}" data-f="sex">${p.sex==='f'?'F':'M'}</button>
+          <button type="button" class="${cls}" data-f="pos">${lbl}</button>
+          <button type="button" class="rm" data-f="rm">✕</button></div>
+        <div class="rat-row" data-id="${p.id}">${rats}</div>
+      </div>`;
     }).join('');
   }
   function cyclePos(p){
@@ -1232,7 +1426,7 @@
       const b=e.target.closest('.menu-item'); if(!b)return;
       if(b.dataset.act==='half'){ armConfirm(b,halfConfirmLabel(),()=>{ $('#menuScrim').classList.remove('open'); halfAction(); }); return; }
       $('#menuScrim').classList.remove('open');
-      ({plan:openPlan, events:openTimeline, stats:openStats, roster:openRoster})[b.dataset.act]();
+      ({strategy:openStrat, plan:openPlan, events:openTimeline, stats:openStats, roster:openRoster})[b.dataset.act]();
     });
     $('#planBtn').addEventListener('click',openPlan);
     $('#planCopy').addEventListener('click',copyGame);
@@ -1244,6 +1438,27 @@
       p.pref[z]=prefW(p,z)>1?0.25:(prefW(p,z)<1?1:2);   // normal → prefer → avoid → normal
       save(); renderPlan();
     });
+    $('#stratNew').addEventListener('click',()=>{ const s=newStrategy('Plan '+String.fromCharCode(65+S.strategies.length)); S.strategies.push(s); selStrat=s.id; save(); renderStrat(); });
+    $('#stratDone').addEventListener('click',()=>$('#stratScrim').classList.remove('open'));
+    $('#stratCopy').addEventListener('click',()=>{ const s=curStrat(); if(s)copyText(JSON.stringify(stratJSON(s),null,2),'Plan copied — paste to save or share'); });
+    $('#stratScrim').addEventListener('click',e=>{
+      if(e.target.id==='stratScrim'){ $('#stratScrim').classList.remove('open'); return; }
+      const row=e.target.closest('.st-row'); if(row){ selStrat=+row.dataset.sid; renderStrat(); return; }
+      const b=e.target.closest('[data-act]'); if(!b)return; const s=curStrat(); if(!s)return; const act=b.dataset.act;
+      if(act==='unit'){ s.unit=b.dataset.v; }
+      else if(act==='gk'){ s.gkPlan=b.dataset.v; }
+      else if(act==='auto'){ s.starters=autoStarters(); }
+      else if(act==='current'){ s.starters=currentStarters(); }
+      else if(act==='slot'){ cycleStarter(s,b.dataset.slot); }
+      else if(act==='active'){ S.activeStrat=S.activeStrat===s.id?null:s.id; save(); renderStrat(); if(S.activeStrat===s.id)applyActive(s); return; }
+      else if(act==='dup'){ const c=JSON.parse(JSON.stringify(s)); c.id=S.nextStratId++; c.name=s.name+' copy'; c.starters=Object.assign({},s.starters); S.strategies.push(c); selStrat=c.id; }
+      else if(act==='del'){ armConfirm(b,'Tap again to delete',()=>{ S.strategies=S.strategies.filter(x=>x.id!==s.id); if(S.activeStrat===s.id)S.activeStrat=null; selStrat=S.strategies[0]?S.strategies[0].id:null; save(); renderStrat(); }); return; }
+      save(); renderStrat();
+    });
+    $('#stratScrim').addEventListener('input',e=>{ const s=curStrat(); if(!s)return; if(e.target.dataset.f==='name'){ s.name=e.target.value; save(); const nm=$(`.st-row[data-sid="${s.id}"] .st-nm`); if(nm){ const a=S.activeStrat===s.id; nm.innerHTML=(a?'<span class="abadge">On</span>':'')+esc(s.name); } } });
+    $('#stratScrim').addEventListener('change',e=>{ const s=curStrat(); if(!s)return;
+      if(e.target.dataset.f==='bias'){ s.bias=Math.max(0,Math.min(1,(+e.target.value)/100)); save(); renderStrat(); }
+      else if(e.target.dataset.f==='shift'){ s.shiftSec=Math.max(30,Math.min(600,+e.target.value||s.shiftSec)); save(); renderStrat(); } });
     $('#statsBtn').addEventListener('click',openStats);
     $('#statsDone').addEventListener('click',()=>$('#statsScrim').classList.remove('open'));
     $('#statsScrim').addEventListener('click',e=>{if(e.target.id==='statsScrim')$('#statsScrim').classList.remove('open');});
@@ -1264,7 +1479,10 @@
       if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to reset'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Reset game'; },2500); return; }
       b.classList.remove('arm'); b.textContent='Reset game';
       S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
-    $('#rosterBody').addEventListener('click',e=>{ const row=e.target.closest('.roster-row'); if(!row)return; const p=P(+row.dataset.id);
+    $('#rosterBody').addEventListener('click',e=>{
+      const rr=e.target.closest('.rat-row');
+      if(rr){ const b=e.target.closest('.ratbtn'); if(b){ const p=P(+rr.dataset.id); const k=b.dataset.k; p.rat=Object.assign(newRat(),p.rat); p.rat[k]=p.rat[k]>=5?1:p.rat[k]+1; drawRoster(); save(); } return; }
+      const row=e.target.closest('.roster-row'); if(!row)return; const p=P(+row.dataset.id);
       if(e.target.dataset.f==='sex'){ p.sex=p.sex==='f'?'m':'f'; drawRoster(); save(); }
       if(e.target.dataset.f==='pos'){ cyclePos(p); drawRoster(); save(); }
       if(e.target.dataset.f==='rm'){ const b=e.target;
