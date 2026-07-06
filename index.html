@@ -142,6 +142,9 @@
   .sexdot.m{background:var(--male);}
   .inel{opacity:.4;}
   @keyframes due-pulse{0%,100%{opacity:1;} 50%{opacity:.55;}}
+  /* gentle "shift's up" pulse on a player once their ticker passes the target — subtle amber ring */
+  @keyframes tick-pulse{0%,100%{box-shadow:inset 0 0 0 1px rgba(246,179,82,.22);} 50%{box-shadow:inset 0 0 0 2px rgba(246,179,82,.6);}}
+  .prow.due-now,.pcard.due-now{animation:tick-pulse 1.9s ease-in-out infinite;}
   .pill.off{background:rgba(246,179,82,.16); color:var(--warn);}
   .pill.off.due{animation:due-pulse 1.6s ease-in-out infinite;}
   .subbtn{display:inline-flex; align-items:center; gap:5px; min-height:40px; padding:0 13px; border-radius:11px; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.02em; white-space:nowrap; background:var(--acc); color:var(--acc-ink); box-shadow:0 3px 10px rgba(94,234,212,.22);}
@@ -716,6 +719,8 @@
   const isGK=p=>zoneOf(p.pos)==='goal';
   const cadence=()=>Math.max(30,S.shiftT||90);            // one knob: target shift length
   const overShift=p=>S.suggest&&(isGK(p)?p.posSec>=S.gkT:p.shiftSec>=cadence());  // gated off when rotation tips are disabled
+  // over the shift ticker (GK: keeper stint) — a gentle "time's up" cue, always on, independent of the tips toggle
+  const overTicker=p=>!!p.pos&&(isGK(p)?p.posSec>=(S.gkT||300):p.shiftSec>=cadence());
   const overNow=()=>(S.phase==='h1'||S.phase==='h2')&&S.running&&S.elapsed>=S.halfLen*60;
   /* mixed-team rule */
   const femCourt=()=>onCourt().filter(p=>p.sex==='f').length;
@@ -822,10 +827,10 @@
     const gk=zone==='goal';
     const p=inSlot(k);
     if(!p){ return `<button type="button" class="pcard on-court empty ${S.sel?'tgt':''}" data-slot="${k}" style="${st}"><span class="p-tl">${label}</span><span>${S.sel?'Tap to fill':'Empty'}</span></button>`; }
-    return `<button type="button" class="pcard on-court ${ROLECLASS[zone]}${stateCls(p)}${inelClass(p)}" data-id="${p.id}" style="${st}">
+    return `<button type="button" class="pcard on-court ${ROLECLASS[zone]}${stateCls(p)}${inelClass(p)}${dueCls(p)}" data-id="${p.id}" style="${st}">
       ${idHTML(p,label)}
       <div class="p-status">${courtStatus(p,curRec)}</div>
-      ${clockHTML(gk?'In goal':'Shift', gk?p.posSec:p.shiftSec, overShift(p))}
+      ${clockHTML(gk?'In goal':'Shift', gk?p.posSec:p.shiftSec, overTicker(p))}
       ${footHTML(p,gk)}
     </button>`;
   }
@@ -839,16 +844,17 @@
     </button>`;
   }
 
+  const dueCls=p=>overTicker(p)&&S.sel!==p.id?' due-now':'';   // gentle pulse, but not while the player is selected
   /* phone list rows — same DNA and the same .p-* live-update hooks as the cards */
   function courtRowHTML(slot){
     const {k,label,zone}=slot; const gk=zone==='goal';
     const p=inSlot(k);
     if(!p){ return `<button type="button" class="prow empty ${ROLECLASS[zone]} ${S.sel?'tgt':''}" data-slot="${k}"><span class="p-chip">${label}</span><span class="p-name-col"><span class="p-nm">${S.sel?'Tap to fill':'Empty'}</span></span></button>`; }
-    return `<button type="button" class="prow ${ROLECLASS[zone]}${stateCls(p)}${inelClass(p)}" data-id="${p.id}">
+    return `<button type="button" class="prow ${ROLECLASS[zone]}${stateCls(p)}${inelClass(p)}${dueCls(p)}" data-id="${p.id}">
       <span class="p-chip">${label}</span>
       <span class="p-name-col"><span class="p-nm">${esc(p.name)}${femHTML(p)}</span><span class="r-sub">Total <b class="p-tv mono">${fmt(p.sec)}</b></span></span>
       <span class="p-status">${courtStatus(p,curRec)}</span>
-      <span class="r-clock"><span class="p-cl">${gk?'In goal':'Shift'}</span><span class="p-cv mono${overShift(p)?' over':''}">${fmt(gk?p.posSec:p.shiftSec)}</span></span>
+      <span class="r-clock"><span class="p-cl">${gk?'In goal':'Shift'}</span><span class="p-cv mono${overTicker(p)?' over':''}">${fmt(gk?p.posSec:p.shiftSec)}</span></span>
       ${tlBarHTML(p)}
     </button>`;
   }
@@ -905,7 +911,8 @@
         if(p.pos){
           const el=court.querySelector('[data-id="'+p.id+'"]'); if(!el)return;
           const gk=isGK(p);
-          const cv=el.querySelector('.p-cv'); if(cv){ cv.textContent=fmt(gk?p.posSec:p.shiftSec); cv.classList.toggle('over', overShift(p)); }
+          const cv=el.querySelector('.p-cv'); if(cv){ cv.textContent=fmt(gk?p.posSec:p.shiftSec); cv.classList.toggle('over', overTicker(p)); }
+          el.classList.toggle('due-now', overTicker(p)&&S.sel!==p.id);
           const tv=el.querySelector('.p-tv'); if(tv)tv.textContent=fmt(p.sec);
           const zb=el.querySelector('.p-zbar');
           if(zb){ const total=p.sec||0; zb.querySelectorAll('i').forEach(seg=>{ seg.style.width=(total>0?((p.zone[seg.dataset.z]||0)/total)*100:0)+'%'; }); }
