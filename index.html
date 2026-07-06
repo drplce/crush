@@ -174,10 +174,14 @@
   .prow.empty.tgt{border-style:solid; border-color:var(--acc);}
   .prow.empty.tgt .p-nm{color:var(--acc);}
   /* chronological time-on-court strip — one continuous run of colour per zone, thin as the sex dot */
-  .p-tlbar{position:absolute; left:12px; right:12px; bottom:6px; height:4px; border-radius:2px; display:flex; background:rgba(255,255,255,.05); opacity:.9;}
-  .p-tlbar>i{height:100%; display:block;}
-  .p-tlbar>i.z-bn{background:rgba(255,255,255,.16);}
+  .p-tlbar{position:absolute; left:12px; right:12px; bottom:6px; height:4px; border-radius:2px; background:rgba(255,255,255,.05); opacity:.9;}
+  .p-tlbar .tl-ghost,.p-tlbar .tl-real{position:absolute; left:0; top:0; height:100%; width:100%; display:flex; border-radius:2px; overflow:hidden;}
+  .p-tlbar .tl-ghost{opacity:.32;}
+  .p-tlbar i{height:100%; display:block;}
+  .p-tlbar i.z-bn{background:rgba(255,255,255,.16);}
+  .p-tlbar .tl-ghost i.z-bn{background:rgba(255,255,255,.09);}
   .p-tlbar .htm{position:absolute; top:-2px; bottom:-2px; width:2px; margin-left:-1px; border-radius:1px; background:var(--muted);}
+  .p-tlbar .tl-next{position:absolute; top:-2px; bottom:-2px; width:2px; margin-left:-1px; border-radius:1px; background:var(--acc); opacity:.85;}
 
   /* ---------- Bench ---------- */
   .bench-zone{flex:0 0 auto; display:flex; flex-direction:column; gap:8px;}
@@ -310,7 +314,9 @@
   .zlegend span{display:inline-flex; align-items:center; gap:6px;}
   .zlegend i{width:11px; height:11px; border-radius:3px; display:inline-block;}
   .histo{display:flex; flex-direction:column; gap:9px; position:relative;}
-  .hrow{display:grid; grid-template-columns:96px 1fr auto; align-items:center; gap:12px;}
+  .hrow{display:grid; grid-template-columns:96px 1fr auto auto; align-items:center; gap:12px;}
+  .hrow .hpm{font-family:var(--mono); font-size:12px; font-weight:700; min-width:26px; text-align:right; color:var(--muted-2);}
+  .hrow .hpm.pos{color:var(--acc);} .hrow .hpm.neg{color:var(--att);}
   .hrow .hn{font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .hrow .hn small{color:var(--muted); font-weight:500;}
   .htrack{position:relative; height:22px; background:rgba(255,255,255,.05); border-radius:6px; overflow:hidden; display:flex;}
@@ -392,6 +398,18 @@
   .ministr.danger{color:var(--att); border-color:rgba(255,115,104,.4); margin-left:auto;}
   .ministr.arm{color:var(--att) !important; border-color:rgba(255,115,104,.55) !important; font-weight:700;}
   .st-actions{display:flex; gap:6px; align-items:center; margin-top:2px;}
+
+  /* ---------- Season ---------- */
+  .sn-head{display:grid; grid-template-columns:1fr 34px 56px 34px 40px 84px; gap:6px; padding:0 6px 4px; font-size:8px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted-2); font-weight:700;}
+  .sn-head span:not(:first-child){text-align:right;}
+  .sn-row{display:grid; grid-template-columns:1fr 34px 56px 34px 40px 84px; gap:6px; align-items:center; padding:9px 6px; border-bottom:1px solid var(--line); font-size:13px;}
+  .sn-row .sn-nm{font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .sn-row .sn-m{text-align:right; color:var(--muted); font-size:12px;}
+  .sn-row .sn-m.pos{color:var(--acc); font-weight:700;} .sn-row .sn-m.neg{color:var(--att); font-weight:700;}
+  .sn-game{display:flex; align-items:center; gap:10px; padding:8px 6px; border-bottom:1px solid var(--line); font-size:12px; color:var(--muted);}
+  .sn-game .sn-gt{flex:1;} .sn-game .sn-gs{color:var(--text); font-weight:700;}
+  .sn-del{width:26px; height:26px; border-radius:7px; border:1px solid var(--line); background:var(--board); color:var(--muted-2); font-size:13px; flex:none;}
+  #seasonImport textarea{width:100%; min-height:90px; margin:8px 0; padding:10px; border-radius:10px; background:var(--board); border:1px solid var(--line); color:var(--text); font-family:var(--mono); font-size:12px; resize:vertical;}
   .roster-row input[type=text]{height:44px; padding:0 12px; border-radius:10px; background:var(--board); border:1px solid var(--line); color:var(--text); font-size:16px; font-family:var(--sans);}
   /* fixed-width columns so every row's name field, sex, position and remove line up */
   .roster-row input.nm{flex:1 1 auto; min-width:0; width:0;}
@@ -498,6 +516,15 @@
   <div class="sheet-foot"><button type="button" id="planCopy">Copy game</button><button type="button" id="planDone">Done</button></div>
 </div></div>
 
+<div class="scrim" id="seasonScrim"><div class="sheet">
+  <h2>Season</h2><p class="sub" id="seasonSub"></p>
+  <div id="seasonTable"></div>
+  <div class="ed-btns" style="margin-top:12px"><button type="button" class="ministr" id="seasonAdd">+ Add current game</button><button type="button" class="ministr" id="seasonImportToggle">Import JSON</button></div>
+  <div id="seasonImport" hidden><textarea id="seasonJSON" placeholder="Paste a “Copy game” JSON here…"></textarea><div class="ed-btns"><button type="button" class="ministr on" id="seasonImportDo">Import</button></div></div>
+  <div id="seasonGames"></div>
+  <div class="sheet-foot"><button type="button" class="danger" id="seasonClear">Clear season</button><button type="button" id="seasonDone">Done</button></div>
+</div></div>
+
 <div class="scrim" id="stratScrim"><div class="sheet">
   <h2>Strategy</h2><p class="sub" id="stratSub"></p>
   <div id="stratList"></div>
@@ -545,7 +572,7 @@
 
 <script>
 (function(){
-  const KEY='crushControl.v3', OLDKEY='crushControl.v2';
+  const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -729,13 +756,18 @@
   // so the bar fills up as the match runs and the unfilled tail is the time still to play.
   // denominator = planned full game, but never less than what's actually been played — so a slight
   // overrun just tops the bar out at 100% (rather than overflowing) and an early finish leaves a gap.
+  const segBars=(arr,denom)=>arr.map(g=>`<i class="${g.z==='bench'?'z-bn':(ZCLASS[g.z]||'z-bn')}" style="width:${(g.s/denom*100).toFixed(2)}%"></i>`).join('');
   function tlInner(p){
     const seg=p.seg||[]; const played=seg.reduce((s,g)=>s+g.s,0);
-    if(played<=0) return '';
-    const denom=Math.max((S.halfLen||16)*60*2, played);
-    const bars=seg.map(g=>`<i class="${g.z==='bench'?'z-bn':(ZCLASS[g.z]||'z-bn')}" style="width:${(g.s/denom*100).toFixed(2)}%"></i>`).join('');
-    const hm=S.h1Secs>0?`<span class="htm" style="left:${Math.min(100,S.h1Secs/denom*100).toFixed(2)}%"></span>`:'';
-    return bars+hm;
+    const ghost=projCache&&projCache.byId[p.id];
+    if(played<=0&&!ghost) return '';
+    const denom=Math.max((S.halfLen||16)*60*2, played)||1;
+    let html='';
+    if(ghost) html+=`<span class="tl-ghost">${segBars(ghost,denom)}</span>`;   // faint projected plan (full game)
+    if(played>0) html+=`<span class="tl-real">${segBars(seg,denom)}</span>`;    // actual, painted over the plan
+    if(projCache){ const now=gameElapsed(); const nx=projCache.events.find(e=>e.t>now+0.5&&(e.inId===p.id||e.outId===p.id)); if(nx) html+=`<span class="tl-next" style="left:${Math.min(100,nx.t/denom*100).toFixed(2)}%"></span>`; }
+    if(S.h1Secs>0) html+=`<span class="htm" style="left:${Math.min(100,S.h1Secs/denom*100).toFixed(2)}%"></span>`;
+    return html;
   }
   const tlBarHTML=p=>`<span class="p-tlbar" data-tl="${p.id}">${tlInner(p)}</span>`;
   const femHTML=p=>S.minF>0?`<span class="sexdot ${p.sex==='f'?'f':'m'}"></span>`:'';
@@ -820,7 +852,7 @@
   function updateScores(){ $('#scoreUs').textContent=S.scoreUs; $('#scoreThem').textContent=S.scoreThem; }
   let curT=null, curRec=null;
   function render(){
-    curT=computeTargets(); curRec=getRec(); renderedPairKey=getRec._k;
+    curT=computeTargets(); curRec=getRec(); renderedPairKey=getRec._k; computeProj();
     const list=isList();
     if(list){
       $('#courtCards').innerHTML='';
@@ -966,8 +998,14 @@
     $('#scorerScrim').classList.add('open');
   }
   function closeScorer(){ S.reassign=null; $('#scorerScrim').classList.remove('open'); }
-  function logFor(id){ const p=P(id); S.scoreUs++; p.goals=(p.goals||0)+1; const ev={eid:S.nextEid++,type:'for',pid:id,half:S.half,t:S.elapsed}; S.events.push(ev); S.history.push({type:'for',eid:ev.eid}); if(S.history.length>25)S.history.shift(); $('#scorerScrim').classList.remove('open'); toast(`Goal — <b>${esc(p.name)}</b> (${S.scoreUs}–${S.scoreThem})`,true); render(); save(); }
-  function goalAgainst(){ S.scoreThem++; const ev={eid:S.nextEid++,type:'against',half:S.half,t:S.elapsed}; S.events.push(ev); S.history.push({type:'against',eid:ev.eid}); if(S.history.length>25)S.history.shift(); toast(`Goal against (${S.scoreUs}–${S.scoreThem})`,true); render(); save(); }
+  // snapshot everyone on court when a goal happens → the basis for plus/minus and line-chemistry over the season
+  const onCourtSnap=()=>onCourt().map(p=>({id:p.id,slot:p.pos}));
+  function logFor(id){ const p=P(id); S.scoreUs++; p.goals=(p.goals||0)+1; const ev={eid:S.nextEid++,type:'for',pid:id,half:S.half,t:S.elapsed,onCourt:onCourtSnap()}; S.events.push(ev); S.history.push({type:'for',eid:ev.eid}); if(S.history.length>25)S.history.shift(); $('#scorerScrim').classList.remove('open'); toast(`Goal — <b>${esc(p.name)}</b> (${S.scoreUs}–${S.scoreThem})`,true); render(); save(); }
+  function goalAgainst(){ S.scoreThem++; const ev={eid:S.nextEid++,type:'against',half:S.half,t:S.elapsed,onCourt:onCourtSnap()}; S.events.push(ev); S.history.push({type:'against',eid:ev.eid}); if(S.history.length>25)S.history.shift(); toast(`Goal against (${S.scoreUs}–${S.scoreThem})`,true); render(); save(); }
+  // plus/minus & keeper goals-against for the CURRENT game (derived from the on-court snapshots)
+  const pmFor=p=>{ let pm=0; S.events.forEach(e=>{ if((e.type==='for'||e.type==='against')&&Array.isArray(e.onCourt)&&e.onCourt.some(o=>o.id===p.id)) pm+=e.type==='for'?1:-1; }); return pm; };
+  const gaFor=p=>S.events.filter(e=>e.type==='against'&&Array.isArray(e.onCourt)&&e.onCourt.some(o=>o.id===p.id&&o.slot==='GK')).length;
+  const sgn=n=>(n>0?'+':'')+n;
   function removeEvent(eid){ const i=S.events.findIndex(e=>e.eid===eid); if(i>=0)S.events.splice(i,1); S.history=S.history.filter(h=>h.eid!==eid); }
   function doReassign(newId){ const ev=S.events.find(e=>e.eid===S.reassign); if(ev){ const old=P(ev.pid); if(old&&old.goals)old.goals--; ev.pid=newId; const np=P(newId); np.goals=(np.goals||0)+1; } S.reassign=null; $('#scorerScrim').classList.remove('open'); renderTimeline(); render(); save(); toast('Scorer updated',false); }
   function deleteEvent(eid,btn){ const ev=S.events.find(e=>e.eid===eid); if(!ev)return;
@@ -1150,6 +1188,50 @@
   function fbCopy(text,cb){ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.top='-1000px'; document.body.appendChild(ta); ta.focus(); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); cb&&cb(); }
   function copyGame(){ copyText(JSON.stringify(gameJSON(),null,2), 'Game data copied — paste to save tonight’s game'); }
 
+  /* ============================ SEASON STORE ============================
+     A separate, game-surviving log so knowledge builds across the season:
+     minutes, goals, keeper GA and +/- per player, aggregated by name. */
+  const parseClock=s=>{ if(typeof s==='number')return s; const m=/^(\d+):(\d+)$/.exec(String(s||'')); return m?(+m[1]*60+ +m[2]):0; };
+  function loadSeason(){ try{ const r=localStorage.getItem(SEASON_KEY); if(r){const o=JSON.parse(r); if(o&&Array.isArray(o.games))return o;} }catch(e){} return {games:[]}; }
+  function saveSeason(o){ try{ localStorage.setItem(SEASON_KEY, JSON.stringify(o)); }catch(e){} }
+  // build a season record from the CURRENT live game
+  function gameToRecord(){
+    const hasPM=S.events.some(e=>(e.type==='for'||e.type==='against')&&Array.isArray(e.onCourt));
+    return { savedAt:new Date().toISOString(), source:'live', formation:S.formation, halfMin:S.halfLen,
+      scoreFor:S.scoreUs, scoreAgainst:S.scoreThem,
+      players:S.players.map(p=>({ name:p.name, sec:p.sec, goals:p.goals||0, gkSec:p.zone.goal||0, pm:hasPM?pmFor(p):null, ga:gaFor(p) })) };
+  }
+  // build a record from a pasted "Copy game" JSON (older exports have minutes+goals but no +/-)
+  function recordFromJSON(obj){
+    if(!obj||!Array.isArray(obj.players)) return null;
+    return { savedAt:obj.exportedAt||new Date().toISOString(), source:'import', formation:obj.formation||'?', halfMin:(obj.settings&&obj.settings.halfMin)||S.halfLen,
+      scoreFor:obj.score?obj.score.for:0, scoreAgainst:obj.score?obj.score.against:0,
+      players:obj.players.map(p=>({ name:p.name, sec:p.totalSec!=null?p.totalSec:parseClock(p.totalTime), goals:p.goals||0, gkSec:(p.zoneSec&&p.zoneSec.goal)||0, pm:null, ga:null })) };
+  }
+  // aggregate every game by player name
+  function seasonAgg(sn){
+    const by={};
+    sn.games.forEach(g=>g.players.forEach(pl=>{ const k=(pl.name||'?').trim(); const a=by[k]||(by[k]={name:pl.name,games:0,sec:0,goals:0,gkSec:0,pm:0,pmGames:0,ga:0,gaGames:0});
+      a.games++; a.sec+=pl.sec||0; a.goals+=pl.goals||0; a.gkSec+=pl.gkSec||0;
+      if(pl.pm!=null){ a.pm+=pl.pm; a.pmGames++; } if(pl.ga!=null){ a.ga+=pl.ga; a.gaGames++; } }));
+    return Object.values(by).sort((a,b)=>b.sec-a.sec);
+  }
+
+  let SN=loadSeason();
+  function openSeason(){ renderSeason(); $('#seasonScrim').classList.add('open'); }
+  function renderSeason(){
+    const agg=seasonAgg(SN);
+    $('#seasonSub').textContent=`${SN.games.length} game${SN.games.length===1?'':'s'} logged · totals build across the season (kept separately from the live game).`;
+    if(!agg.length){ $('#seasonTable').innerHTML='<div class="plan-empty">No games yet — add the current game, or import a “Copy game” JSON below.</div>'; }
+    else {
+      $('#seasonTable').innerHTML='<div class="sn-head"><span>Player</span><span>GP</span><span>Mins</span><span>Gls</span><span>+/−</span><span>GK</span></div>'+
+        agg.map(a=>{ const pm=a.pmGames?sgn(a.pm):'–'; const gk=a.gkSec>0?fmt(a.gkSec)+(a.gaGames?` · ${a.ga} GA`:''):'–';
+          return `<div class="sn-row"><span class="sn-nm">${esc(a.name)}</span><span class="sn-m">${a.games}</span><span class="sn-m mono">${fmt(a.sec)}</span><span class="sn-m">${a.goals}</span><span class="sn-m ${a.pmGames&&a.pm>0?'pos':''} ${a.pmGames&&a.pm<0?'neg':''}">${pm}</span><span class="sn-m mono">${gk}</span></div>`; }).join('');
+    }
+    $('#seasonGames').innerHTML=SN.games.length?('<div class="eyebrow plan-label" style="margin-top:12px">Games</div>'+SN.games.map((g,i)=>
+      `<div class="sn-game"><span class="sn-gt">${(g.savedAt||'').slice(0,10)||'game'} · ${g.source==='import'?'imported':'live'}</span><span class="sn-gs mono">${g.scoreFor}–${g.scoreAgainst}</span><button type="button" class="sn-del" data-i="${i}">✕</button></div>`).join('')):'';
+  }
+
   /* ============================ STRATEGY PLANNER ============================
      Deterministic forward-projection of the WHOLE game from kickoff for a given
      plan (start line, shift length, keeper policy, rotate individually/in pairs,
@@ -1172,7 +1254,7 @@
     const unit=strat.unit==='line'?'line':'individual';
     const gkRotate=(strat.gkPlan||'rotate')!=='fixed';
     const T=computeTargets(), hasGoal=!!T.zs.goal, slots=slotDefs();
-    const st={}; S.players.forEach(p=>st[p.id]={pos:null,sec:0,shift:0,goal:0});
+    const st={}, proj={}; S.players.forEach(p=>{st[p.id]={pos:null,sec:0,shift:0,goal:0}; proj[p.id]=[];});
     const used=new Set(), starters=strat.starters||{};
     slots.forEach(s=>{ const pid=starters[s.k]; if(pid!=null&&st[pid]&&!used.has(pid)){ st[pid].pos=s.k; used.add(pid);} });
     slots.forEach(s=>{ if(!S.players.some(p=>st[p.id].pos===s.k)){ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[c.id].pos=s.k; used.add(c.id);} } });
@@ -1184,7 +1266,7 @@
     const teamStrength=()=>S.players.reduce((s,p)=>s+(st[p.id].pos?fitFor(p,zoneOf(st[p.id].pos)):0),0);
     const ov=(a,b,c,d)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
     let prev=0;
-    const advance=to=>{ const step=to-prev; if(step>0){ const strg=teamStrength(); area+=step*strg; earlyArea+=ov(prev,to,0,W)*strg; lateArea+=ov(prev,to,totalGame-W,totalGame)*strg; S.players.forEach(p=>{const s=st[p.id]; if(s.pos){s.sec+=step; s.shift+=step; if(zoneOf(s.pos)==='goal')s.goal+=step;}}); prev=to; } };
+    const advance=to=>{ const step=to-prev; if(step>0){ const strg=teamStrength(); area+=step*strg; earlyArea+=ov(prev,to,0,W)*strg; lateArea+=ov(prev,to,totalGame-W,totalGame)*strg; S.players.forEach(p=>{const s=st[p.id]; const z=s.pos?zoneOf(s.pos):'bench'; const a=proj[p.id]; const last=a[a.length-1]; if(last&&last.z===z)last.s+=step; else a.push({z,s:step}); if(s.pos){s.sec+=step; s.shift+=step; if(zoneOf(s.pos)==='goal')s.goal+=step;}}); prev=to; } };
     const events=[];
     const rotateOnce=()=>{
       const bench=S.players.filter(p=>!st[p.id].pos); if(!bench.length)return false;
@@ -1221,7 +1303,16 @@
     const secs=S.players.map(p=>({id:p.id, sec:st[p.id].sec, goal:st[p.id].goal}));
     const on=secs.map(s=>s.sec), nOn=slots.length||5;
     const metrics={ spread:on.length?Math.max(...on)-Math.min(...on):0, avgStr:(area/totalGame)/nOn, keyStr:((earlyArea+lateArea)/(2*W))/nOn, subs:events.filter(e=>e.kind==='sub').length, gkSwaps:events.filter(e=>e.kind==='gk').length };
-    return {strat, events, secs, halfLen, totalGame, metrics};
+    return {strat, events, secs, halfLen, totalGame, metrics, proj};
+  }
+
+  /* projection cache for the live strip's "ghost" plan — recomputed on render, read each second */
+  let projCache=null;
+  function computeProj(){
+    const s=S.strategies.find(x=>x.id===S.activeStrat);
+    if(!s){ projCache=null; return; }
+    try{ const sm=simulate(s); projCache={ byId:sm.proj, events:sm.events, plan:sm.totalGame }; }
+    catch(e){ projCache=null; }
   }
 
   function cycleStarter(s,k){ s.starters=Object.assign({},s.starters); const ids=S.players.map(p=>p.id); if(!ids.length)return; let i=s.starters[k]!=null?ids.indexOf(s.starters[k]):-1; i=(i+1)%ids.length; const cand=ids[i]; Object.keys(s.starters).forEach(kk=>{ if(kk!==k&&s.starters[kk]===cand) delete s.starters[kk]; }); s.starters[k]=cand; }
@@ -1286,6 +1377,7 @@
     let items='';
     if(half) items+=`<button type="button" class="menu-item ${S.phase==='ht'?'go':''}" data-act="half">${half}</button>`;
     items+=`<button type="button" class="menu-item" data-act="strategy">Strategy<span class="mi-sub">plan &amp; compare rotations</span></button>
+      <button type="button" class="menu-item" data-act="season">Season<span class="mi-sub">totals &amp; +/−</span></button>
       <button type="button" class="menu-item" data-act="plan">Game plan<span class="mi-sub">rotations &amp; targets</span></button>
       <button type="button" class="menu-item" data-act="events">Events<span class="mi-sub">match timeline</span></button>
       <button type="button" class="menu-item" data-act="stats">Stats<span class="mi-sub">time &amp; zones</span></button>
@@ -1304,9 +1396,11 @@
       `<div class="m"><span class="v mono">${fmt(avg)}</span><span class="l">Average court time</span></div>
        <div class="m"><span class="v mono">${fmt(mx-mn)}</span><span class="l">Spread (most − least)</span></div>
        <div class="m"><span class="v mono">${fmt(Math.max(...playing.map(p=>p.zone.goal)))}</span><span class="l">Longest in goal</span></div>`;
+    const hasPM=S.events.some(e=>(e.type==='for'||e.type==='against')&&Array.isArray(e.onCourt));
     $('#histo').innerHTML=ps.map(p=>{
       const segs=['att','mid','def','goal'].map(z=>p.zone[z]>0?`<span class="seg ${ZCLASS[z]}" style="width:${(p.zone[z]/max)*100}%"></span>`:'').join('');
-      return `<div class="hrow"><span class="hn">${esc(p.name)} <small>${p.pos||'bench'}</small></span><div class="htrack">${segs}</div><span class="ht mono">${fmt(p.sec)}</span></div>`;
+      const pm=pmFor(p); const pmHtml=hasPM?`<span class="hpm ${pm>0?'pos':(pm<0?'neg':'')}">${sgn(pm)}</span>`:'';
+      return `<div class="hrow"><span class="hn">${esc(p.name)} <small>${p.pos||'bench'}</small></span><div class="htrack">${segs}</div>${pmHtml}<span class="ht mono">${fmt(p.sec)}</span></div>`;
     }).join('');
     $('.histo-wrap').querySelectorAll('.avgline').forEach(n=>n.remove());
     $('#statsScrim').classList.add('open');
@@ -1426,7 +1520,7 @@
       const b=e.target.closest('.menu-item'); if(!b)return;
       if(b.dataset.act==='half'){ armConfirm(b,halfConfirmLabel(),()=>{ $('#menuScrim').classList.remove('open'); halfAction(); }); return; }
       $('#menuScrim').classList.remove('open');
-      ({strategy:openStrat, plan:openPlan, events:openTimeline, stats:openStats, roster:openRoster})[b.dataset.act]();
+      ({strategy:openStrat, season:openSeason, plan:openPlan, events:openTimeline, stats:openStats, roster:openRoster})[b.dataset.act]();
     });
     $('#planBtn').addEventListener('click',openPlan);
     $('#planCopy').addEventListener('click',copyGame);
@@ -1439,7 +1533,7 @@
       save(); renderPlan();
     });
     $('#stratNew').addEventListener('click',()=>{ const s=newStrategy('Plan '+String.fromCharCode(65+S.strategies.length)); S.strategies.push(s); selStrat=s.id; save(); renderStrat(); });
-    $('#stratDone').addEventListener('click',()=>$('#stratScrim').classList.remove('open'));
+    $('#stratDone').addEventListener('click',()=>{ $('#stratScrim').classList.remove('open'); render(); });   // pick up edits to the active plan on the live strip
     $('#stratCopy').addEventListener('click',()=>{ const s=curStrat(); if(s)copyText(JSON.stringify(stratJSON(s),null,2),'Plan copied — paste to save or share'); });
     $('#stratScrim').addEventListener('click',e=>{
       if(e.target.id==='stratScrim'){ $('#stratScrim').classList.remove('open'); return; }
@@ -1450,7 +1544,7 @@
       else if(act==='auto'){ s.starters=autoStarters(); }
       else if(act==='current'){ s.starters=currentStarters(); }
       else if(act==='slot'){ cycleStarter(s,b.dataset.slot); }
-      else if(act==='active'){ S.activeStrat=S.activeStrat===s.id?null:s.id; save(); renderStrat(); if(S.activeStrat===s.id)applyActive(s); return; }
+      else if(act==='active'){ S.activeStrat=S.activeStrat===s.id?null:s.id; save(); renderStrat(); if(S.activeStrat===s.id)applyActive(s); else render(); return; }
       else if(act==='dup'){ const c=JSON.parse(JSON.stringify(s)); c.id=S.nextStratId++; c.name=s.name+' copy'; c.starters=Object.assign({},s.starters); S.strategies.push(c); selStrat=c.id; }
       else if(act==='del'){ armConfirm(b,'Tap again to delete',()=>{ S.strategies=S.strategies.filter(x=>x.id!==s.id); if(S.activeStrat===s.id)S.activeStrat=null; selStrat=S.strategies[0]?S.strategies[0].id:null; save(); renderStrat(); }); return; }
       save(); renderStrat();
@@ -1459,6 +1553,13 @@
     $('#stratScrim').addEventListener('change',e=>{ const s=curStrat(); if(!s)return;
       if(e.target.dataset.f==='bias'){ s.bias=Math.max(0,Math.min(1,(+e.target.value)/100)); save(); renderStrat(); }
       else if(e.target.dataset.f==='shift'){ s.shiftSec=Math.max(30,Math.min(600,+e.target.value||s.shiftSec)); save(); renderStrat(); } });
+    $('#seasonDone').addEventListener('click',()=>$('#seasonScrim').classList.remove('open'));
+    $('#seasonScrim').addEventListener('click',e=>{if(e.target.id==='seasonScrim')$('#seasonScrim').classList.remove('open');});
+    $('#seasonAdd').addEventListener('click',()=>{ SN.games.push(gameToRecord()); saveSeason(SN); renderSeason(); toast('Current game added to season',false); });
+    $('#seasonImportToggle').addEventListener('click',()=>{ const b=$('#seasonImport'); b.hidden=!b.hidden; });
+    $('#seasonImportDo').addEventListener('click',()=>{ let obj=null; try{obj=JSON.parse($('#seasonJSON').value);}catch(e){} const rec=recordFromJSON(obj); if(!rec){ toast('Could not read that JSON — paste a “Copy game” export',false); return; } SN.games.push(rec); saveSeason(SN); $('#seasonJSON').value=''; $('#seasonImport').hidden=true; renderSeason(); toast('Game imported to season',false); });
+    $('#seasonGames').addEventListener('click',e=>{ const d=e.target.closest('.sn-del'); if(!d)return; if(!d.classList.contains('arm')){ d.classList.add('arm'); d.textContent='?'; setTimeout(()=>{ if(d.isConnected){d.classList.remove('arm'); d.textContent='✕';} },2500); return; } SN.games.splice(+d.dataset.i,1); saveSeason(SN); renderSeason(); });
+    $('#seasonClear').addEventListener('click',e=>{ const b=e.currentTarget; if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to clear'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Clear season'; },2500); return; } b.classList.remove('arm'); b.textContent='Clear season'; SN={games:[]}; saveSeason(SN); renderSeason(); });
     $('#statsBtn').addEventListener('click',openStats);
     $('#statsDone').addEventListener('click',()=>$('#statsScrim').classList.remove('open'));
     $('#statsScrim').addEventListener('click',e=>{if(e.target.id==='statsScrim')$('#statsScrim').classList.remove('open');});
