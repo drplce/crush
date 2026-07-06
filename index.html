@@ -360,6 +360,8 @@
   .field{display:flex; align-items:center; gap:10px;}
   .field label{font-size:13px; color:var(--muted);}
   .field input{width:64px; height:44px; padding:0 10px; border-radius:10px; background:var(--board); border:1px solid var(--line); color:var(--text); font-size:16px; font-family:var(--mono); text-align:center;}
+  .togbtn{height:44px; min-width:64px; padding:0 16px; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted); font-size:14px; font-weight:700;}
+  .togbtn.on{background:var(--acc); color:var(--acc-ink); border-color:transparent;}
 
   /* toast */
   #toast{position:fixed; left:50%; bottom:90px; transform:translateX(-50%) translateY(20px); z-index:60; display:flex; align-items:center; gap:14px; padding:13px 16px 13px 18px; border-radius:14px; background:var(--panel-hi); border:1px solid var(--line); box-shadow:0 12px 34px rgba(0,0,0,.45); opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease; max-width:calc(100% - 36px); color:var(--text); font-family:var(--sans); -webkit-font-smoothing:antialiased;}
@@ -476,6 +478,7 @@
     <div class="field"><label for="shiftT">Shift length (sec)</label><input class="mono" id="shiftT" type="number" min="30" max="600" inputmode="numeric"></div>
     <div class="field"><label for="gkT">Keeper alert (sec)</label><input class="mono" id="gkT" type="number" min="30" max="1200" inputmode="numeric"></div>
     <div class="field"><label for="minF">Min ♀ on court</label><input class="mono" id="minF" type="number" min="0" max="4" inputmode="numeric"></div>
+    <div class="field"><label for="sugBtn">Rotation tips</label><button type="button" id="sugBtn" class="togbtn"></button></div>
   </div>
   <div class="sheet-foot"><button type="button" class="danger" id="resetGame">Reset game</button><button type="button" id="rosterDone">Done</button></div>
 </div></div>
@@ -571,7 +574,7 @@
       newPlayer(7,'Ana',null,'f'), newPlayer(8,'Ben',null),
     ],
     scoreUs:0,scoreThem:0, running:false,half:1,elapsed:0,
-    halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, lastSub:0, nextId:9, sel:null, history:[],
+    halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, lastSub:0, suggest:false, nextId:9, sel:null, history:[],
     events:[], nextEid:1, phase:'h1', chimed:false, formation:'2-2'
   });
 
@@ -588,6 +591,7 @@
         S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; p.pref=Object.assign(newPref(),p.pref||{}); if(p.sex!=='f')p.sex='m';});
         if(S.minF===undefined)S.minF=2;
         if(S.lastSub===undefined)S.lastSub=0;
+        if(S.suggest===undefined)S.suggest=false;
         // one-time defaults bump: only touch values still left at the old defaults, so custom settings are kept
         if(!S.dv){ if(S.halfLen===25)S.halfLen=16; if(S.shiftT===90)S.shiftT=180; S.dv=1; }
         return;
@@ -604,7 +608,7 @@
   const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const isGK=p=>zoneOf(p.pos)==='goal';
   const cadence=()=>Math.max(30,S.shiftT||90);            // one knob: target shift length
-  const overShift=p=>isGK(p)?p.posSec>=S.gkT:p.shiftSec>=cadence();
+  const overShift=p=>S.suggest&&(isGK(p)?p.posSec>=S.gkT:p.shiftSec>=cadence());  // gated off when rotation tips are disabled
   const overNow=()=>(S.phase==='h1'||S.phase==='h2')&&S.running&&S.elapsed>=S.halfLen*60;
   /* mixed-team rule */
   const femCourt=()=>onCourt().filter(p=>p.sex==='f').length;
@@ -911,7 +915,7 @@
   let lockedPair=null, renderedPairKey='';
   function clearLock(){ lockedPair=null; }
   function nextSubRec(){
-    if(!S.players.length) return null;
+    if(!S.suggest||!S.players.length) return null;   // rotation tips off → no live recommendation
     const T=computeTargets();
     const bench=S.players.filter(p=>!p.pos).sort((a,b)=>paceDiff(a,T)-paceDiff(b,T)||a.id-b.id);
     if(!bench.length) return null;
@@ -1110,7 +1114,8 @@
   function openTimeline(){ renderTimeline(); $('#tlScrim').classList.add('open'); }
 
   /* roster editor */
-  function openRoster(){ $('#halfLen').value=S.halfLen; $('#shiftT').value=S.shiftT; $('#gkT').value=S.gkT; $('#minF').value=S.minF; drawRoster(); $('#rosterScrim').classList.add('open'); }
+  function setSugBtn(){ const b=$('#sugBtn'); b.textContent=S.suggest?'On':'Off'; b.classList.toggle('on',S.suggest); }
+  function openRoster(){ $('#halfLen').value=S.halfLen; $('#shiftT').value=S.shiftT; $('#gkT').value=S.gkT; $('#minF').value=S.minF; setSugBtn(); drawRoster(); $('#rosterScrim').classList.add('open'); }
   function drawRoster(){
     $('#rosterBody').innerHTML=S.players.map(p=>{
       const lbl=p.pos||'Bench'; const cls='posbtn'+(p.pos?' is-on':'')+(p.pos==='GK'?' gk':'');
@@ -1212,6 +1217,7 @@
     $('#addPlayer').addEventListener('click',()=>{S.players.push(newPlayer(S.nextId++,'New player',null));drawRoster();save();});
     ['halfLen','shiftT','gkT'].forEach(k=>$('#'+k).addEventListener('change',e=>{S[k]=Math.max(1,+e.target.value||S[k]);save();render();}));
     $('#minF').addEventListener('change',e=>{ const v=e.target.value.trim(); if(v===''||isNaN(+v)){e.target.value=S.minF;return;} S.minF=Math.max(0,Math.min(4,Math.floor(+v))); e.target.value=S.minF; save();render();});
+    $('#sugBtn').addEventListener('click',()=>{ S.suggest=!S.suggest; clearLock(); setSugBtn(); save(); render(); });
     $('#resetGame').addEventListener('click',e=>{ const b=e.currentTarget;
       if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to reset'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Reset game'; },2500); return; }
       b.classList.remove('arm'); b.textContent='Reset game';
