@@ -549,7 +549,7 @@
       newPlayer(7,'Ana',null,'f'), newPlayer(8,'Ben',null),
     ],
     scoreUs:0,scoreThem:0, running:false,half:1,elapsed:0,
-    halfLen:25, shiftT:90, gkT:300, minF:2, nextId:9, sel:null, history:[],
+    halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, nextId:9, sel:null, history:[],
     events:[], nextEid:1, phase:'h1', chimed:false, formation:'2-2'
   });
 
@@ -565,6 +565,8 @@
         S.formation=S.formation||'2-2';
         S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; p.pref=Object.assign(newPref(),p.pref||{}); if(p.sex!=='f')p.sex='m';});
         if(S.minF===undefined)S.minF=2;
+        // one-time defaults bump: only touch values still left at the old defaults, so custom settings are kept
+        if(!S.dv){ if(S.halfLen===25)S.halfLen=16; if(S.shiftT===90)S.shiftT=180; S.dv=1; }
         return;
       }
     }catch(e){}
