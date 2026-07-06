@@ -157,7 +157,7 @@
 
   /* ---------- Player row (phone list — same card DNA laid horizontally) ---------- */
   .court-list{display:none;}
-  .prow{position:relative; display:flex; align-items:center; gap:10px; width:100%; padding:11px 12px; background:var(--panel); border:1px solid var(--line); border-radius:14px; text-align:left; overflow:hidden; transition:box-shadow .2s ease;}
+  .prow{position:relative; display:flex; align-items:center; gap:10px; width:100%; padding:11px 12px 15px; background:var(--panel); border:1px solid var(--line); border-radius:14px; text-align:left; overflow:hidden; transition:box-shadow .2s ease;}
   .prow .p-chip{margin-left:0; font-size:10px; padding:4px 6px; flex:none; min-width:26px; justify-content:center;}
   .prow .p-name-col{display:flex; flex-direction:column; gap:4px; min-width:0; flex:1;}
   .prow .p-nm{font-size:15px; font-weight:600; color:var(--text);}
@@ -173,6 +173,11 @@
   .prow.empty .p-nm{color:var(--muted-2); font-weight:500;}
   .prow.empty.tgt{border-style:solid; border-color:var(--acc);}
   .prow.empty.tgt .p-nm{color:var(--acc);}
+  /* chronological time-on-court strip — one continuous run of colour per zone, thin as the sex dot */
+  .p-tlbar{position:absolute; left:12px; right:12px; bottom:6px; height:4px; border-radius:2px; display:flex; background:rgba(255,255,255,.05); opacity:.9;}
+  .p-tlbar>i{height:100%; display:block;}
+  .p-tlbar>i.z-bn{background:transparent;}
+  .p-tlbar .htm{position:absolute; top:-2px; bottom:-2px; width:2px; margin-left:-1px; border-radius:1px; background:var(--muted);}
 
   /* ---------- Bench ---------- */
   .bench-zone{flex:0 0 auto; display:flex; flex-direction:column; gap:8px;}
@@ -569,7 +574,7 @@
   let S;
   let fmOpen=false; // transient UI state — deliberately outside S so it is never persisted
   const newPref=()=>({goal:1,def:1,mid:1,att:1});
-  const newPlayer=(id,name,pos,sex)=>({id,name,pos,sex:sex||'m',sec:0,shiftSec:0,posSec:0,restSec:0,goals:0,zone:{goal:0,def:0,mid:0,att:0},pref:newPref()});
+  const newPlayer=(id,name,pos,sex)=>({id,name,pos,sex:sex||'m',sec:0,shiftSec:0,posSec:0,restSec:0,goals:0,zone:{goal:0,def:0,mid:0,att:0},seg:[],pref:newPref()});
   const fresh=()=>({
     players:[
       newPlayer(1,'Mia','F1','f'), newPlayer(2,'Jack','F2'),
@@ -579,7 +584,7 @@
     ],
     scoreUs:0,scoreThem:0, running:false,half:1,elapsed:0,
     halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, lastSub:0, suggest:false, nextId:9, sel:null, history:[],
-    events:[], nextEid:1, phase:'h1', chimed:false, formation:'2-2'
+    events:[], nextEid:1, phase:'h1', chimed:false, formation:'2-2', h1Secs:0
   });
 
   function load(){
@@ -592,7 +597,8 @@
         S.events=S.events||[]; S.nextEid=S.nextEid||1;
         S.phase=S.phase||(S.half===2?'h2':'h1'); S.chimed=S.chimed||false;
         S.formation=S.formation||'2-2';
-        S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; p.pref=Object.assign(newPref(),p.pref||{}); if(p.sex!=='f')p.sex='m';});
+        S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; if(!Array.isArray(p.seg))p.seg=[]; p.pref=Object.assign(newPref(),p.pref||{}); if(p.sex!=='f')p.sex='m';});
+        if(S.h1Secs===undefined)S.h1Secs=0;
         if(S.minF===undefined)S.minF=2;
         if(S.lastSub===undefined)S.lastSub=0;
         if(S.suggest===undefined)S.suggest=false;
@@ -628,9 +634,11 @@
 
   /* clock */
   let timer=null;
+  // append one second to a player's chronological timeline (run-length: grow the last run if same, else start a new one)
+  function pushSeg(p,z){ const a=p.seg||(p.seg=[]); const last=a[a.length-1]; if(last&&last.z===z)last.s++; else a.push({z,s:1}); }
   function tick(){
     S.elapsed++;
-    S.players.forEach(p=>{ if(p.pos){ p.sec++; p.shiftSec++; p.posSec++; p.zone[zoneOf(p.pos)]++; } else { p.restSec++; } });
+    S.players.forEach(p=>{ if(p.pos){ p.sec++; p.shiftSec++; p.posSec++; p.zone[zoneOf(p.pos)]++; } else { p.restSec++; } pushSeg(p, p.pos?zoneOf(p.pos):'bench'); });
     if(!S.chimed && S.elapsed>=S.halfLen*60){ S.chimed=true; beep(); toast((S.phase==='h1'?'1st':'2nd')+' half target reached — clock keeps running, end the half when the ref does',false); renderClock(); }
     liveUpdate(); save();
   }
@@ -639,7 +647,7 @@
     // snapshot the phase state so the transition can be undone (footer Undo or the toast)
     S.history.push({type:'phase',prev:{phase:S.phase,half:S.half,elapsed:S.elapsed,chimed:S.chimed,running:S.running}});
     if(S.history.length>25)S.history.shift();
-    if(S.phase==='h1'){ setRunning(false); S.phase='ht'; beep(); toast('Half-time — '+fmt(S.elapsed)+' played this half',true); }
+    if(S.phase==='h1'){ setRunning(false); S.phase='ht'; S.h1Secs=S.elapsed; beep(); toast('Half-time — '+fmt(S.elapsed)+' played this half',true); }
     else if(S.phase==='ht'){ S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; S.lastSub=S.halfLen*60; setRunning(true); toast('2nd half started',true); }
     else if(S.phase==='h2'){ setRunning(false); S.phase='ft'; beep(); toast('Full-time — '+S.scoreUs+'–'+S.scoreThem,true); }
     render(); save();
@@ -660,6 +668,15 @@
     const order=gk?GK_ZORDER:OUT_ZORDER, total=p.sec||0;
     return order.map(z=>`<i class="${ZCLASS[z]}" data-z="${z}" style="width:${total>0?((p.zone[z]/total)*100).toFixed(1):0}%"></i>`).join('');
   }
+  // chronological strip: run-length segments in zone colour + a taller notch where the 1st half ended
+  function tlInner(p){
+    const seg=p.seg||[]; const tot=seg.reduce((s,g)=>s+g.s,0);
+    if(tot<=0) return '';
+    const bars=seg.map(g=>`<i class="${g.z==='bench'?'z-bn':(ZCLASS[g.z]||'z-bn')}" style="width:${(g.s/tot*100).toFixed(2)}%"></i>`).join('');
+    const hm=S.h1Secs>0?`<span class="htm" style="left:${Math.min(100,S.h1Secs/tot*100).toFixed(2)}%"></span>`:'';
+    return bars+hm;
+  }
+  const tlBarHTML=p=>`<span class="p-tlbar" data-tl="${p.id}">${tlInner(p)}</span>`;
   const femHTML=p=>S.minF>0?`<span class="sexdot ${p.sex==='f'?'f':'m'}"></span>`:'';
   const idHTML=(p,chip)=>`<div class="p-id"><span class="p-name"><span class="p-dot"></span><span class="p-nm">${esc(p.name)}${femHTML(p)}</span></span><span class="p-chip">${chip}</span></div>`;
   const clockHTML=(label,secs,over)=>`<div class="p-clock"><div class="p-cl">${label}</div><div class="p-cv mono${over?' over':''}">${fmt(secs)}</div></div>`;
@@ -721,6 +738,7 @@
       <span class="p-name-col"><span class="p-nm">${esc(p.name)}${femHTML(p)}</span><span class="r-sub">Total <b class="p-tv mono">${fmt(p.sec)}</b></span></span>
       <span class="p-status">${courtStatus(p,curRec)}</span>
       <span class="r-clock"><span class="p-cl">${gk?'In goal':'Shift'}</span><span class="p-cv mono${overShift(p)?' over':''}">${fmt(gk?p.posSec:p.shiftSec)}</span></span>
+      ${tlBarHTML(p)}
     </button>`;
   }
   function benchRowHTML(p){
@@ -730,6 +748,7 @@
       <span class="p-name-col"><span class="p-nm">${esc(p.name)}${femHTML(p)}</span><span class="r-sub">Total <b class="p-tv mono">${fmt(p.sec)}</b></span></span>
       <span class="p-status">${benchStatus(p,curRec)}</span>
       <span class="r-clock"><span class="p-cl">Rest</span><span class="p-cv mono">${fmt(p.restSec)}</span></span>
+      ${tlBarHTML(p)}
     </button>`;
   }
   function renderFmPick(){
@@ -779,11 +798,13 @@
           const tv=el.querySelector('.p-tv'); if(tv)tv.textContent=fmt(p.sec);
           const zb=el.querySelector('.p-zbar');
           if(zb){ const total=p.sec||0; zb.querySelectorAll('i').forEach(seg=>{ seg.style.width=(total>0?((p.zone[seg.dataset.z]||0)/total)*100:0)+'%'; }); }
+          const tb=el.querySelector('.p-tlbar'); if(tb)tb.innerHTML=tlInner(p);
           if(rec&&rec.outId===p.id){ const off=el.querySelector('.pill.off'); if(off){ off.textContent='Off · '+dueTxt(rec); off.classList.toggle('due',rec.dueIn<=0); } }
           else if(gk&&S.sel!==p.id){ const st=el.querySelector('.p-status'); const want=overShift(p)?'<span class="pill off due">Swap GK</span>':''; if(st&&st.innerHTML!==want) st.innerHTML=want; }   // keeper alert appears/clears live
         } else {
           const el=$('#benchGrid').querySelector('[data-id="'+p.id+'"]'); if(!el)return;
           const cv=el.querySelector('.p-cv'); if(cv)cv.textContent=fmt(p.restSec);
+          const tb=el.querySelector('.p-tlbar'); if(tb)tb.innerHTML=tlInner(p);
           if(rec&&rec.inId===p.id){ const btn=el.querySelector('.subbtn'); if(btn){ btn.textContent='⇄ '+P(rec.outId).name+' · '+dueTxt(rec); btn.classList.toggle('due',rec.dueIn<=0); btn.classList.toggle('paused',!S.running); } }
         }
       });
@@ -812,7 +833,7 @@
     if(h.type==='move'){ h.snap.forEach(s=>{const p=P(s.id); if(!p)return; p.pos=(s.pos&&!slotDef(s.pos))?null:s.pos; p.shiftSec=s.shiftSec; p.posSec=s.posSec; p.restSec=s.restSec;}); if(h.eid){const i=S.events.findIndex(e=>e.eid===h.eid); if(i>=0)S.events.splice(i,1);} }
     else if(h.type==='for'){ const ev=S.events.find(e=>e.eid===h.eid); if(ev){const p=P(ev.pid); if(p&&p.goals)p.goals--;} S.scoreUs--; const i=S.events.findIndex(e=>e.eid===h.eid); if(i>=0)S.events.splice(i,1); }
     else if(h.type==='against'){ S.scoreThem--; const i=S.events.findIndex(e=>e.eid===h.eid); if(i>=0)S.events.splice(i,1); }
-    else if(h.type==='phase'){ const p=h.prev; S.phase=p.phase; S.half=p.half; S.elapsed=p.elapsed; S.chimed=p.chimed; S.sel=null; $('#toast').classList.remove('show'); setRunning(p.running); save(); return; }
+    else if(h.type==='phase'){ const p=h.prev; S.phase=p.phase; S.half=p.half; S.elapsed=p.elapsed; S.chimed=p.chimed; if(p.phase==='h1')S.h1Secs=0; S.sel=null; $('#toast').classList.remove('show'); setRunning(p.running); save(); return; }
     S.sel=null; $('#toast').classList.remove('show'); render(); save();
   }
 
@@ -1238,7 +1259,7 @@
     $('#resetGame').addEventListener('click',e=>{ const b=e.currentTarget;
       if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to reset'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Reset game'; },2500); return; }
       b.classList.remove('arm'); b.textContent='Reset game';
-      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
+      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
     $('#rosterBody').addEventListener('click',e=>{ const row=e.target.closest('.roster-row'); if(!row)return; const p=P(+row.dataset.id);
       if(e.target.dataset.f==='sex'){ p.sex=p.sex==='f'?'m':'f'; drawRoster(); save(); }
       if(e.target.dataset.f==='pos'){ cyclePos(p); drawRoster(); save(); }
