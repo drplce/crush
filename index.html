@@ -21,7 +21,7 @@
     --board:#08090f; --panel:#161a2b; --panel-hi:#1a1f33; --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.16);
     --text:#f5f5f7; --muted:#8a8fa3; --muted-2:#5b6076;
     --acc:#5eead4; --acc-ink:#08131a;
-    --att:#ff7368; --mid:#4ec97a; --def:#3f6fe0; --gk:#ffcf5a; --warn:#f6b352;
+    --att:#ff7368; --mid:#4ec97a; --def:#3f6fe0; --gk:#ffcf5a; --warn:#f6b352; --fem:#f28fb8;
     --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
   }
@@ -133,7 +133,8 @@
   .p-zbar>i{height:100%; display:block;}
   .pcard.is-sel{box-shadow:0 0 0 2px rgba(94,234,212,.55);}
   .p-cv.over{color:var(--warn);}
-  .fem{font-size:.78em; color:var(--muted); font-weight:600;}
+  /* female marker — "F" in a pink ring: a letter + CSS circle, renders reliably on iOS (unlike a ♀ glyph) */
+  .fem{display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; margin-left:6px; border-radius:50%; border:1.5px solid var(--fem); color:var(--fem); font-size:9px; font-weight:800; line-height:1; vertical-align:middle; flex:none;}
   .inel{opacity:.4;}
   @keyframes due-pulse{0%,100%{opacity:1;} 50%{opacity:.55;}}
   .pill.off{background:rgba(246,179,82,.16); color:var(--warn);}
@@ -328,7 +329,7 @@
   /* fixed-width columns so every row's name field, sex, position and remove line up */
   .roster-row input.nm{flex:1 1 auto; min-width:0; width:0;}
   .roster-row .sexbtn{flex:0 0 44px; width:44px; height:44px; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted-2); font-size:16px; font-weight:700; line-height:1; display:flex; align-items:center; justify-content:center;}
-  .roster-row .sexbtn.f{color:var(--acc); background:var(--panel-hi); border-color:var(--line2);}
+  .roster-row .sexbtn.f{color:var(--fem); background:var(--panel-hi); border-color:var(--fem);}
   .roster-row .posbtn{flex:0 0 66px; width:66px; height:44px; padding:0; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; text-align:center;}
   .roster-row .posbtn.is-on{background:var(--def); color:#fff; border-color:transparent;}
   .roster-row .posbtn.gk{background:var(--gk); color:#241a00; border-color:transparent;}
@@ -630,7 +631,7 @@
     const order=gk?GK_ZORDER:OUT_ZORDER, total=p.sec||0;
     return order.map(z=>`<i class="${ZCLASS[z]}" data-z="${z}" style="width:${total>0?((p.zone[z]/total)*100).toFixed(1):0}%"></i>`).join('');
   }
-  const femHTML=p=>(S.minF>0&&p.sex==='f')?'<span class="fem"> ♀</span>':'';
+  const femHTML=p=>(S.minF>0&&p.sex==='f')?'<span class="fem">F</span>':'';
   const idHTML=(p,chip)=>`<div class="p-id"><span class="p-name"><span class="p-dot"></span><span class="p-nm">${esc(p.name)}${femHTML(p)}</span></span><span class="p-chip">${chip}</span></div>`;
   const clockHTML=(label,secs,over)=>`<div class="p-clock"><div class="p-cl">${label}</div><div class="p-cv mono${over?' over':''}">${fmt(secs)}</div></div>`;
   const footHTML=(p,gk)=>`<div class="p-foot"><div class="p-tl">Total</div><div class="p-tv mono">${fmt(p.sec)}</div><div class="p-zbar">${selfZbarHTML(p,gk)}</div></div>`;
