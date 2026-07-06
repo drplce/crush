@@ -176,7 +176,7 @@
   /* chronological time-on-court strip — one continuous run of colour per zone, thin as the sex dot */
   .p-tlbar{position:absolute; left:12px; right:12px; bottom:6px; height:4px; border-radius:2px; display:flex; background:rgba(255,255,255,.05); opacity:.9;}
   .p-tlbar>i{height:100%; display:block;}
-  .p-tlbar>i.z-bn{background:transparent;}
+  .p-tlbar>i.z-bn{background:rgba(255,255,255,.16);}
   .p-tlbar .htm{position:absolute; top:-2px; bottom:-2px; width:2px; margin-left:-1px; border-radius:1px; background:var(--muted);}
 
   /* ---------- Bench ---------- */
@@ -668,12 +668,16 @@
     const order=gk?GK_ZORDER:OUT_ZORDER, total=p.sec||0;
     return order.map(z=>`<i class="${ZCLASS[z]}" data-z="${z}" style="width:${total>0?((p.zone[z]/total)*100).toFixed(1):0}%"></i>`).join('');
   }
-  // chronological strip: run-length segments in zone colour + a taller notch where the 1st half ended
+  // chronological strip: run-length segments in zone colour, laid against the FULL planned game
+  // so the bar fills up as the match runs and the unfilled tail is the time still to play.
+  // denominator = planned full game, but never less than what's actually been played — so a slight
+  // overrun just tops the bar out at 100% (rather than overflowing) and an early finish leaves a gap.
   function tlInner(p){
-    const seg=p.seg||[]; const tot=seg.reduce((s,g)=>s+g.s,0);
-    if(tot<=0) return '';
-    const bars=seg.map(g=>`<i class="${g.z==='bench'?'z-bn':(ZCLASS[g.z]||'z-bn')}" style="width:${(g.s/tot*100).toFixed(2)}%"></i>`).join('');
-    const hm=S.h1Secs>0?`<span class="htm" style="left:${Math.min(100,S.h1Secs/tot*100).toFixed(2)}%"></span>`:'';
+    const seg=p.seg||[]; const played=seg.reduce((s,g)=>s+g.s,0);
+    if(played<=0) return '';
+    const denom=Math.max((S.halfLen||16)*60*2, played);
+    const bars=seg.map(g=>`<i class="${g.z==='bench'?'z-bn':(ZCLASS[g.z]||'z-bn')}" style="width:${(g.s/denom*100).toFixed(2)}%"></i>`).join('');
+    const hm=S.h1Secs>0?`<span class="htm" style="left:${Math.min(100,S.h1Secs/denom*100).toFixed(2)}%"></span>`:'';
     return bars+hm;
   }
   const tlBarHTML=p=>`<span class="p-tlbar" data-tl="${p.id}">${tlInner(p)}</span>`;
