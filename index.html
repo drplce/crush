@@ -333,6 +333,10 @@
   .tl-ico{width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; flex:0 0 auto;}
   .tl-ev.us .tl-ico{background:rgba(94,234,212,.16); color:var(--acc);}
   .tl-ev.them .tl-ico{background:rgba(255,115,104,.14); color:var(--att);}
+  .tl-ev.sub{grid-column:3;}
+  .tl-ev.sub .tl-ico{background:rgba(255,255,255,.06); color:var(--muted); font-weight:700;}
+  .tl-ev.sub .nm{font-weight:600;}
+  .tl-off{color:var(--muted-2);}
   .tl-txt .nm{font-size:15px; font-weight:650;}
   .tl-txt .sub2{font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px;}
   .tl-ev.them .tl-txt .sub2{justify-content:flex-end;}
@@ -455,7 +459,7 @@
 </div></div>
 
 <div class="scrim" id="tlScrim"><div class="sheet">
-  <h2>Match timeline</h2><p class="sub">Goals as they happened. Tap a goal to fix the scorer; tap ✕ to remove it.</p>
+  <h2>Match timeline</h2><p class="sub">Goals and substitutions as they happened. Tap a goal to fix the scorer; tap ✕ to remove it.</p>
   <div class="tl-score" id="tlScore"></div>
   <div class="tl" id="tl"></div>
   <div class="sheet-foot"><button type="button" id="tlDone">Done</button></div>
@@ -619,6 +623,8 @@
   function updateUndo(){ $('#undoBtn').disabled=S.history.length===0; }
   function snap(ids){ return ids.map(id=>{const p=P(id); return {id,pos:p.pos,shiftSec:p.shiftSec,posSec:p.posSec,restSec:p.restSec};}); }
   function pushMove(label,ids){ S.history.push({type:'move',label,snap:snap(ids)}); if(S.history.length>25)S.history.shift(); updateUndo(); }
+  // log a substitution/position change to the match timeline, linked to the just-pushed move so Undo removes it too
+  function logSub(ev){ ev.eid=S.nextEid++; ev.half=S.half; ev.t=S.elapsed; S.events.push(ev); const h=S.history[S.history.length-1]; if(h&&h.type==='move')h.eid=ev.eid; }
 
   /* clock */
   let timer=null;
@@ -803,7 +809,7 @@
   let toastT=null;
   function toast(msg,undoable){ $('#toastMsg').innerHTML=msg; $('#toastUndo').style.display=undoable?'block':'none'; const el=$('#toast'); el.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),undoable?6000:3200); }
   function undoLast(){ const h=S.history.pop(); if(!h)return;
-    if(h.type==='move'){ h.snap.forEach(s=>{const p=P(s.id); if(!p)return; p.pos=(s.pos&&!slotDef(s.pos))?null:s.pos; p.shiftSec=s.shiftSec; p.posSec=s.posSec; p.restSec=s.restSec;}); }
+    if(h.type==='move'){ h.snap.forEach(s=>{const p=P(s.id); if(!p)return; p.pos=(s.pos&&!slotDef(s.pos))?null:s.pos; p.shiftSec=s.shiftSec; p.posSec=s.posSec; p.restSec=s.restSec;}); if(h.eid){const i=S.events.findIndex(e=>e.eid===h.eid); if(i>=0)S.events.splice(i,1);} }
     else if(h.type==='for'){ const ev=S.events.find(e=>e.eid===h.eid); if(ev){const p=P(ev.pid); if(p&&p.goals)p.goals--;} S.scoreUs--; const i=S.events.findIndex(e=>e.eid===h.eid); if(i>=0)S.events.splice(i,1); }
     else if(h.type==='against'){ S.scoreThem--; const i=S.events.findIndex(e=>e.eid===h.eid); if(i>=0)S.events.splice(i,1); }
     else if(h.type==='phase'){ const p=h.prev; S.phase=p.phase; S.half=p.half; S.elapsed=p.elapsed; S.chimed=p.chimed; S.sel=null; $('#toast').classList.remove('show'); setRunning(p.running); save(); return; }
@@ -834,6 +840,7 @@
       const aGK=isGK(a), bGK=isGK(b);
       const ap=a.pos; a.pos=b.pos; b.pos=ap; a.posSec=0; b.posSec=0;
       if(aGK!==bGK){ a.shiftSec=0; b.shiftSec=0; }   // crossing in/out of goal starts a fresh shift in the new role
+      logSub({type:'swap', aId:a.id, bId:b.id, aSlot:a.pos, bSlot:b.pos});
       S.sel=null; toast(`Swapped — <b>${esc(a.name)}</b> ${a.pos} · ${esc(b.name)} ${b.pos}`,true);
     } else if(!a.pos && b.pos){                // bench → court : a takes b's slot
       sub(a,b);
@@ -847,13 +854,14 @@
     const slot=offP.pos; offP.pos=null; offP.shiftSec=0; offP.posSec=0; offP.restSec=0;
     onP.pos=slot; onP.shiftSec=0; onP.posSec=0;
     S.lastSub=gameElapsed();             // reset the rotation pace clock
+    logSub({type:'sub', inId:onP.id, outId:offP.id, slot});
     S.sel=null; toast(`<b>${esc(onP.name)}</b> on at ${slot} · ${esc(offP.name)} off`,true);
   }
   function clickSlot(pos){               // empty slot tapped
     if(S.sel===null) return;
     const a=P(S.sel); pushMove('fill',[a.id]);
     const fromBench=!a.pos;              // bench → fresh shift; on-court move → keep shift
-    a.pos=pos; a.posSec=0; if(fromBench){ a.shiftSec=0; S.lastSub=gameElapsed(); }
+    a.pos=pos; a.posSec=0; if(fromBench){ a.shiftSec=0; S.lastSub=gameElapsed(); logSub({type:'sub', inId:a.id, outId:null, slot:pos}); }
     S.sel=null; toast(`<b>${esc(a.name)}</b> in at ${pos}`,true); render(); save();
   }
 
@@ -1041,9 +1049,15 @@
       players:S.players.map(p=>({name:p.name, sex:p.sex, position:p.pos||'bench',
         totalTime:fmt(p.sec), totalSec:p.sec, goals:p.goals||0,
         zoneSec:{goal:p.zone.goal, defence:p.zone.def, midfield:p.zone.mid, attack:p.zone.att}})),
-      goals:[...S.events].sort((a,b)=>a.half-b.half||a.t-b.t).map(e=>({
-        type:e.type==='for'?'for':'against', half:e.half, time:fmt(e.t),
+      goals:[...S.events].filter(e=>e.type==='for'||e.type==='against').sort((a,b)=>a.half-b.half||a.t-b.t).map(e=>({
+        type:e.type, half:e.half, time:fmt(e.t),
         scorer:e.type==='for'&&e.pid?(P(e.pid)?.name||null):null})),
+      subs:[...S.events].filter(e=>e.type==='sub'||e.type==='swap').sort((a,b)=>a.half-b.half||a.t-b.t).map(e=>{
+        const nm=id=>{const p=P(id); return p?p.name:null;};
+        return e.type==='swap'
+          ? {kind:'swap', half:e.half, time:fmt(e.t), players:[nm(e.aId),nm(e.bId)]}
+          : {kind:'sub', half:e.half, time:fmt(e.t), on:nm(e.inId), off:e.outId?nm(e.outId):null, slot:e.slot||null};
+      }),
     };
   }
   function copyText(text, ok){
@@ -1096,15 +1110,20 @@
   function renderTimeline(){
     $('#tlScore').innerHTML=`<small>Us – Them</small><b>${S.scoreUs}</b> : ${S.scoreThem}`;
     const evs=[...S.events].sort((a,b)=>a.half-b.half||a.t-b.t);
-    if(!evs.length){ $('#tl').innerHTML='<div class="tl-empty">No goals yet — they’ll appear here as you log them.</div>'; return; }
+    if(!evs.length){ $('#tl').innerHTML='<div class="tl-empty">Nothing yet — goals and subs appear here as they happen.</div>'; return; }
+    const nm=id=>{const p=P(id); return p?esc(p.name):'—';};
     let us=0,them=0,lastHalf=evs[0].half,html='';
     evs.forEach(e=>{
       if(e.half!==lastHalf){ html+=`<div class="tl-div"><span>2nd half</span></div>`; lastHalf=e.half; }
       const chip=`<div class="tl-chip"><span class="mm mono">${fmt(e.t)}</span><span class="hh">H${e.half}</span></div>`;
       if(e.type==='for'){ us++; const p=P(e.pid);
         html+=`<div class="tl-row">${chip}<div class="tl-ev us" data-eid="${e.eid}"><div class="tl-ico">⚽</div><div class="tl-txt"><div class="nm">${p?esc(p.name):'Goal'}</div><div class="sub2"><span>Goal</span> · <span class="tl-sc">${us}–${them}</span> <button type="button" class="tl-del" data-eid="${e.eid}">✕</button></div></div></div></div>`;
-      } else { them++;
+      } else if(e.type==='against'){ them++;
         html+=`<div class="tl-row">${chip}<div class="tl-ev them"><div class="tl-ico">⚽</div><div class="tl-txt"><div class="nm">Goal against</div><div class="sub2"><button type="button" class="tl-del" data-eid="${e.eid}">✕</button> <span class="tl-sc">${us}–${them}</span></div></div></div></div>`;
+      } else { // substitution / position swap
+        const txt = e.type==='swap' ? `${nm(e.aId)} ⇄ ${nm(e.bId)}`
+          : (e.outId ? `${nm(e.inId)} <span class="tl-off">for ${nm(e.outId)}</span>` : `${nm(e.inId)} on`);
+        html+=`<div class="tl-row">${chip}<div class="tl-ev sub"><div class="tl-ico">⇄</div><div class="tl-txt"><div class="nm">${txt}</div><div class="sub2">${e.type==='swap'?'position swap':'sub'+(e.slot?' · '+e.slot:'')}</div></div></div></div>`;
       }
     });
     $('#tl').innerHTML=html;
