@@ -323,15 +323,16 @@
   .tl-del:active{transform:scale(.9);}
 
   /* roster editor */
-  .roster-row{display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line);}
+  .roster-row{display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line);}
   .roster-row input[type=text]{height:44px; padding:0 12px; border-radius:10px; background:var(--board); border:1px solid var(--line); color:var(--text); font-size:16px; font-family:var(--sans);}
-  .roster-row input.nm{flex:1; min-width:0;}
-  .roster-row .posbtn{height:44px; min-width:58px; padding:0 10px; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;}
+  /* fixed-width columns so every row's name field, sex, position and remove line up */
+  .roster-row input.nm{flex:1 1 auto; min-width:0; width:0;}
+  .roster-row .sexbtn{flex:0 0 44px; width:44px; height:44px; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted-2); font-size:17px;}
+  .roster-row .sexbtn.f{color:var(--text); background:var(--panel-hi); border-color:var(--line2);}
+  .roster-row .posbtn{flex:0 0 66px; width:66px; height:44px; padding:0; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; text-align:center;}
   .roster-row .posbtn.is-on{background:var(--def); color:#fff; border-color:transparent;}
   .roster-row .posbtn.gk{background:var(--gk); color:#241a00; border-color:transparent;}
-  .roster-row .sexbtn{min-width:44px; height:44px; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted-2); font-size:17px; flex:0 0 auto;}
-  .roster-row .sexbtn.f{color:var(--text); background:var(--panel-hi); border-color:var(--line2);}
-  .roster-row .rm{min-width:42px; height:44px; padding:0 8px; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted-2); font-size:18px; flex:0 0 auto;}
+  .roster-row .rm{flex:0 0 44px; width:44px; height:44px; padding:0; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted-2); font-size:18px;}
   .roster-row .rm.arm,#resetGame.arm,.tl-del.arm{color:var(--att) !important; border-color:rgba(255,115,104,.55) !important; font-size:12px; font-weight:700;}
   .tl-del.arm{width:auto; padding:0 7px;}
   /* phase-change confirm (end half etc.) — amber "tap again", not destructive red */
