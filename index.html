@@ -226,14 +226,14 @@
     .court-list{display:flex; flex-direction:column; gap:8px;}
     .bench-row{flex-direction:column; gap:8px; overflow:visible; flex:none; padding:0 0 4px;}
     footer.actions{padding:10px 14px calc(12px + env(safe-area-inset-bottom)); gap:10px;}
-    .act{height:52px; font-size:14px; gap:8px;}
+    .act{height:42px; font-size:14px; gap:8px;}
     .act.scored{flex:1.4;}
     .act.undo{flex:0 0 82px; font-size:11px;}
   }
 
   /* ---------- Action bar ---------- */
   footer.actions{display:flex; gap:12px; padding:12px 18px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background:linear-gradient(0deg, rgba(0,0,0,.24), transparent);}
-  .act{flex:1; display:flex; align-items:center; justify-content:center; gap:10px; height:58px; border-radius:14px; font-size:16px; font-weight:700; border:1px solid var(--line); background:var(--panel-hi); transition:transform .08s ease;}
+  .act{flex:1; display:flex; align-items:center; justify-content:center; gap:10px; height:44px; border-radius:11px; font-size:15px; font-weight:700; border:1px solid var(--line); background:var(--panel-hi); transition:transform .08s ease;}
   .act:active{transform:scale(.97);}
   .act.scored{background:var(--acc); color:var(--acc-ink); border-color:transparent; flex:1.5;}
   .act .big{font-family:var(--mono); font-size:15px; opacity:.7;}
@@ -435,7 +435,7 @@
   .togbtn.on{background:var(--acc); color:var(--acc-ink); border-color:transparent;}
 
   /* team mini-timeline — courtside Gantt of the active plan */
-  .team-tl{margin:2px 0 10px; padding:10px 13px 13px; border:1px solid var(--line); border-radius:12px; background:var(--panel);}
+  .team-tl{flex:none; margin:10px 16px 0; padding:9px 13px 12px; border:1px solid var(--line); border-radius:12px; background:var(--panel);}
   .ttl-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px;}
   .ttl-lead{font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted-2); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .ttl-next{font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -485,6 +485,11 @@
     </div>
   </header>
 
+  <div id="teamTL" class="team-tl" hidden>
+    <div class="ttl-top"><span class="ttl-lead" id="ttlLead">Game plan</span><span class="ttl-next" id="ttlNext"></span></div>
+    <div class="ttl-track" id="ttlTrack"></div>
+  </div>
+
   <main class="pitch">
     <section class="court-zone">
       <div class="court-head">
@@ -493,10 +498,6 @@
           <button type="button" class="fmsel" id="fmSel"><span id="fmSelLabel">2-2</span></button>
           <div class="fmothers" id="fmOthers"></div>
         </div>
-      </div>
-      <div id="teamTL" class="team-tl" hidden>
-        <div class="ttl-top"><span class="ttl-lead" id="ttlLead">Game plan</span><span class="ttl-next" id="ttlNext"></span></div>
-        <div class="ttl-track" id="ttlTrack"></div>
       </div>
       <div id="courtWarn" class="court-warn" hidden></div>
       <div class="rink-wrap"><div class="rink" id="rink">
@@ -584,7 +585,6 @@
     <div class="field"><label for="shiftT">Shift length (sec)</label><input class="mono" id="shiftT" type="number" min="30" max="600" inputmode="numeric"></div>
     <div class="field"><label for="gkT">Keeper alert (sec)</label><input class="mono" id="gkT" type="number" min="30" max="1200" inputmode="numeric"></div>
     <div class="field"><label for="minF">Min ♀ on court</label><input class="mono" id="minF" type="number" min="0" max="4" inputmode="numeric"></div>
-    <div class="field"><label for="sugBtn">Rotation tips</label><button type="button" id="sugBtn" class="togbtn"></button></div>
   </div>
   <div class="sheet-foot"><button type="button" class="danger" id="resetGame">Reset game</button><button type="button" id="rosterDone">Done</button></div>
 </div></div>
@@ -681,7 +681,7 @@
       newPlayer(7,'Ana',null,'f'), newPlayer(8,'Ben',null),
     ],
     scoreUs:0,scoreThem:0, running:false,half:1,elapsed:0,
-    halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, lastSub:0, suggest:false, nextId:9, sel:null, history:[],
+    halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, lastSub:0, nextId:9, sel:null, history:[],
     events:[], nextEid:1, phase:'h1', chimed:false, formation:'2-2', h1Secs:0,
     strategies:[], activeStrat:null, nextStratId:1
   });
@@ -701,7 +701,6 @@
         if(!Array.isArray(S.strategies))S.strategies=[]; if(S.activeStrat===undefined)S.activeStrat=null; if(!S.nextStratId)S.nextStratId=1;
         if(S.minF===undefined)S.minF=2;
         if(S.lastSub===undefined)S.lastSub=0;
-        if(S.suggest===undefined)S.suggest=false;
         // one-time defaults bump: only touch values still left at the old defaults, so custom settings are kept
         if(!S.dv){ if(S.halfLen===25)S.halfLen=16; if(S.shiftT===90)S.shiftT=180; S.dv=1; }
         return;
@@ -718,8 +717,7 @@
   const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const isGK=p=>zoneOf(p.pos)==='goal';
   const cadence=()=>Math.max(30,S.shiftT||90);            // one knob: target shift length
-  const overShift=p=>S.suggest&&(isGK(p)?p.posSec>=S.gkT:p.shiftSec>=cadence());  // gated off when rotation tips are disabled
-  // over the shift ticker (GK: keeper stint) — a gentle "time's up" cue, always on, independent of the tips toggle
+  // over the shift ticker (GK: keeper stint) — a gentle "time's up" cue that turns the shift clock amber
   const overTicker=p=>!!p.pos&&(isGK(p)?p.posSec>=(S.gkT||300):p.shiftSec>=cadence());
   const overNow=()=>(S.phase==='h1'||S.phase==='h2')&&S.running&&S.elapsed>=S.halfLen*60;
   /* mixed-team rule */
@@ -800,18 +798,18 @@
 
   // owed vs pace — the exact number the recommender ranks by
   const owedTxt=(p,T)=>{const d=paceDiff(p,T); return Math.abs(d)<30?'on target':(d<0?'owed '+short(-d):'over '+short(d));};
-  const dueTxt=r=>r.dueIn>0?short(r.dueIn):'now';
+  // plan-driven, notification only: the on-court player the plan takes off next / the keeper due to swap
   const courtStatus=(p,rec)=>{
     if(S.sel===p.id) return '<span class="pill sel">Selected</span>';
-    if(rec&&rec.outId===p.id) return `<span class="pill off${rec.dueIn<=0?' due':''}">Off · ${dueTxt(rec)}</span>`;
-    if(isGK(p)&&overShift(p)) return '<span class="pill off due">Swap GK</span>';   // keeper is excluded from auto-rec — flag them here
+    if(rec){
+      if(rec.gk&&rec.gk.outId===p.id) return `<span class="pill off${rec.gk.now?' due':''}">Swap GK${rec.gk.now?'':' · '+short(rec.gk.dueIn)}</span>`;
+      if(rec.off&&rec.off.outId===p.id) return `<span class="pill off${rec.off.now?' due':''}">Off · ${rec.off.now?'now':short(rec.off.dueIn)}</span>`;
+    }
     return '';
   };
-  const benchStatus=(p,rec)=>{
-    if(S.sel===p.id) return '<span class="pill sel">Selected</span>';
-    if(rec&&rec.inId===p.id) return `<span class="subbtn${rec.dueIn<=0?' due':''}${S.running?'':' paused'}" aria-label="Sub in for ${esc(P(rec.outId).name)}" data-in="${rec.inId}" data-out="${rec.outId}">⇄ ${esc(P(rec.outId).name)} · ${dueTxt(rec)}</span>`;
-    return '';
-  };
+  const benchStatus=(p,rec)=>S.sel===p.id?'<span class="pill sel">Selected</span>':'';   // bench is selection-only — no tap-to-sub
+  // gentle row pulse when the plan says this player is due off / keeper due to swap right now
+  const dueRow=(p,rec)=>!!rec&&S.sel!==p.id&&((rec.off&&rec.off.outId===p.id&&rec.off.now)||(rec.gk&&rec.gk.outId===p.id&&rec.gk.now));
   const stateCls=p=>S.sel===p.id?' is-sel':'';
   // while a player is selected, dim partners the ♀ rule would block (still tappable — override)
   function inelClass(p){
@@ -844,7 +842,7 @@
     </button>`;
   }
 
-  const dueCls=p=>overTicker(p)&&S.sel!==p.id?' due-now':'';   // gentle pulse, but not while the player is selected
+  const dueCls=p=>dueRow(p,curRec)?' due-now':'';   // gentle pulse when the plan says this player is due off now
   /* phone list rows — same DNA and the same .p-* live-update hooks as the cards */
   function courtRowHTML(slot){
     const {k,label,zone}=slot; const gk=zone==='goal';
@@ -876,7 +874,7 @@
   function updateScores(){ $('#scoreUs').textContent=S.scoreUs; $('#scoreThem').textContent=S.scoreThem; }
   let curT=null, curRec=null;
   function render(){
-    curT=computeTargets(); curRec=getRec(); renderedPairKey=getRec._k; computeProj();
+    curT=computeTargets(); computeProj(); curRec=getRec(); renderedPairKey=getRec._k;   // build the projection before deriving the plan notification
     const list=isList();
     if(list){
       $('#courtCards').innerHTML='';
@@ -912,18 +910,16 @@
           const el=court.querySelector('[data-id="'+p.id+'"]'); if(!el)return;
           const gk=isGK(p);
           const cv=el.querySelector('.p-cv'); if(cv){ cv.textContent=fmt(gk?p.posSec:p.shiftSec); cv.classList.toggle('over', overTicker(p)); }
-          el.classList.toggle('due-now', overTicker(p)&&S.sel!==p.id);
+          el.classList.toggle('due-now', dueRow(p,rec));
           const tv=el.querySelector('.p-tv'); if(tv)tv.textContent=fmt(p.sec);
           const zb=el.querySelector('.p-zbar');
           if(zb){ const total=p.sec||0; zb.querySelectorAll('i').forEach(seg=>{ seg.style.width=(total>0?((p.zone[seg.dataset.z]||0)/total)*100:0)+'%'; }); }
           const tb=el.querySelector('.p-tlbar'); if(tb)tb.innerHTML=tlInner(p);
-          if(rec&&rec.outId===p.id){ const off=el.querySelector('.pill.off'); if(off){ off.textContent='Off · '+dueTxt(rec); off.classList.toggle('due',rec.dueIn<=0); } }
-          else if(gk&&S.sel!==p.id){ const st=el.querySelector('.p-status'); const want=overShift(p)?'<span class="pill off due">Swap GK</span>':''; if(st&&st.innerHTML!==want) st.innerHTML=want; }   // keeper alert appears/clears live
+          const st=el.querySelector('.p-status'); if(st){ const want=courtStatus(p,rec); if(st.innerHTML!==want) st.innerHTML=want; }   // off/keeper notification updates live
         } else {
           const el=$('#benchGrid').querySelector('[data-id="'+p.id+'"]'); if(!el)return;
           const cv=el.querySelector('.p-cv'); if(cv)cv.textContent=fmt(p.restSec);
           const tb=el.querySelector('.p-tlbar'); if(tb)tb.innerHTML=tlInner(p);
-          if(rec&&rec.inId===p.id){ const btn=el.querySelector('.subbtn'); if(btn){ btn.textContent='⇄ '+P(rec.outId).name+' · '+dueTxt(rec); btn.classList.toggle('due',rec.dueIn<=0); btn.classList.toggle('paused',!S.running); } }
         }
       });
     }
@@ -1060,42 +1056,22 @@
   // rotations are PACED — one every shift-length from the last sub — so the live cue matches the game plan's schedule
   const subDueIn=()=>Math.max(0,(S.lastSub||0)+cadence()-gameElapsed());
 
-  /* next-sub recommendation — longest shift comes off, most-owed comes on.
-     Rule-aware (min ♀), preference-aware (skip players who avoid the vacated zone),
-     and pair-stable: locks once the countdown drops under 30s so it never switches as the coach acts. */
-  let lockedPair=null, renderedPairKey='';
-  function clearLock(){ lockedPair=null; }
-  function nextSubRec(){
-    if(!S.suggest||!S.players.length) return null;   // rotation tips off → no live recommendation
-    const T=computeTargets();
-    const bench=S.players.filter(p=>!p.pos).sort((a,b)=>paceDiff(a,T)-paceDiff(b,T)||a.id-b.id);
-    if(!bench.length) return null;
-    const d=subDueIn();
-    // below the ♀ minimum with a bench female available: the ONLY useful sub is a girl on for a boy off
-    const mustFixFem=S.minF>0&&femCourt()<S.minF&&bench.some(b=>b.sex==='f');
-    let outs=onCourt().filter(p=>!isGK(p));
-    if(mustFixFem) outs=outs.filter(p=>p.sex!=='f');   // taking a girl off can't raise the count
-    outs.sort((a,b)=>b.shiftSec-a.shiftSec||a.id-b.id);
-    if(!outs.length) return null;
-    // a locked pair is honoured only while it still helps — never while it leaves us short of the minimum
-    if(lockedPair&&!mustFixFem){
-      const inP=P(lockedPair.inId), outP=P(lockedPair.outId);
-      if(inP&&outP&&!inP.pos&&outP.pos&&!isGK(outP)&&swapLegal(inP,outP)) return {inId:inP.id,outId:outP.id,dueIn:d};
-    }
-    lockedPair=null;
-    const pool=mustFixFem?bench.filter(b=>b.sex==='f'):bench;
-    for(const out of outs){
-      const z=zoneOf(out.pos);
-      const inP=pool.find(b=>swapLegal(b,out)&&prefW(b,z)>=1)||pool.find(b=>swapLegal(b,out));
-      if(inP){
-        if(d<=30&&!mustFixFem) lockedPair={inId:inP.id,outId:out.id};   // don't lock the urgent-fix rec
-        return {inId:inP.id,outId:out.id,dueIn:d};
-      }
-    }
-    return null;
+  /* Live sub notifications now come straight from the active plan (not a separate recommender).
+     We surface the imminent outfield change and keeper swap as heads-up pills — notification only,
+     no one-tap execution: the coach makes the swap manually. */
+  let renderedPairKey='';
+  function clearLock(){}   // no-op — rotation locking belonged to the retired tips engine
+  function planRec(){
+    if(!projCache) return null;
+    const now=gameElapsed();
+    // earliest change of each kind that is upcoming (or just went due — 8s grace so "now" lingers)
+    const pick=kind=>{ const c=projCache.events.filter(e=>e.kind===kind&&e.t>=now-8); if(!c.length)return null; const e=c[0]; return {outId:e.outId,inId:e.inId,dueIn:Math.max(0,Math.round(e.t-now)),now:e.t<=now}; };
+    const off=pick('sub'), gk=pick('gk');
+    return (off||gk)?{off,gk}:null;
   }
   function getRec(){
-    const r=nextSubRec(); getRec._k=r?r.inId+'>'+r.outId:'';
+    const r=planRec();
+    getRec._k = r ? 'o'+(r.off?r.off.outId+'>'+r.off.inId:'-')+'g'+(r.gk?r.gk.outId+'>'+r.gk.inId:'-') : '';
     return r;
   }
   getRec._k='';
@@ -1345,14 +1321,15 @@
     if(!projCache){ el.hidden=true; return; }
     el.hidden=false;
     const total=projCache.plan||1, now=gameElapsed(), evs=projCache.events;
-    const nextEv=evs.find(e=>e.t>now+0.5);
+    const nextEv=evs.find(e=>e.t>=now-8);   // same 8s grace as the court pill so the two agree on "what's next"
     const pos=t=>Math.min(100,Math.max(0,t/total*100)).toFixed(2);
     let ticks=evs.map(e=>`<span class="ttl-tick ${e.kind==='gk'?'gk':''} ${e===nextEv?'next':''}" style="left:${pos(e.t)}%"></span>`).join('');
     ticks+=`<span class="ttl-half" style="left:50%"></span>`;
     $('#ttlTrack').innerHTML=`<div class="ttl-fill" style="width:${pos(now)}%"></div>${ticks}<span class="ttl-now" style="left:${pos(now)}%"></span>`;
     $('#ttlLead').textContent=projCache.name||'Game plan';
-    if(nextEv){ const dt=Math.max(0,Math.round(nextEv.t-now)), who=P(nextEv.inId), nm=esc(who?who.name:'—');
-      $('#ttlNext').innerHTML = nextEv.kind==='gk' ? `Next <b>${nm}</b> in goal · ${short(dt)}` : `Next <b>${nm}</b> → ${nextEv.slot} · ${short(dt)}`; }
+    if(nextEv){ const dt=nextEv.t<=now?'now':short(Math.max(0,Math.round(nextEv.t-now))), inP=P(nextEv.inId), outP=P(nextEv.outId);
+      const inNm=esc(inP?inP.name:'—'), outNm=esc(outP?outP.name:'—');
+      $('#ttlNext').innerHTML = nextEv.kind==='gk' ? `Next GK <b>${inNm}</b> → ${outNm} · ${dt}` : `Next <b>${inNm}</b> → ${outNm} · ${dt}`; }
     else $('#ttlNext').textContent='Plan complete';
   }
 
@@ -1479,8 +1456,7 @@
   function openTimeline(){ renderTimeline(); $('#tlScrim').classList.add('open'); }
 
   /* roster editor */
-  function setSugBtn(){ const b=$('#sugBtn'); b.textContent=S.suggest?'On':'Off'; b.classList.toggle('on',S.suggest); }
-  function openRoster(){ $('#halfLen').value=S.halfLen; $('#shiftT').value=S.shiftT; $('#gkT').value=S.gkT; $('#minF').value=S.minF; setSugBtn(); drawRoster(); $('#rosterScrim').classList.add('open'); }
+  function openRoster(){ $('#halfLen').value=S.halfLen; $('#shiftT').value=S.shiftT; $('#gkT').value=S.gkT; $('#minF').value=S.minF; drawRoster(); $('#rosterScrim').classList.add('open'); }
   const RATLBL={att:'ATT',def:'DEF',gk:'GK',fit:'FIT'};
   function drawRoster(){
     $('#rosterBody').innerHTML=S.players.map(p=>{
@@ -1534,18 +1510,7 @@
     const courtTap=e=>{ const c=e.target.closest('.pcard,.prow'); if(!c)return; if(c.dataset.id)clickPlayer(+c.dataset.id); else if(c.dataset.slot)clickSlot(c.dataset.slot); };
     $('#courtCards').addEventListener('click',courtTap);
     $('#courtList').addEventListener('click',courtTap);
-    $('#benchGrid').addEventListener('click',e=>{
-      const sb=e.target.closest('.subbtn');
-      if(sb){                                    // one-tap recommended sub — executes exactly the pair shown on the button
-        const inP=P(+sb.dataset.in), outP=P(+sb.dataset.out);
-        if(inP&&outP&&!inP.pos&&outP.pos&&swapLegal(inP,outP)){
-          try{ if(navigator.vibrate) navigator.vibrate(30); }catch(err){}
-          clearLock(); sub(inP,outP); render(); save();
-        }
-        return;
-      }
-      const c=e.target.closest('.pcard,.prow'); if(c)clickPlayer(+c.dataset.id);
-    });
+    $('#benchGrid').addEventListener('click',e=>{ const c=e.target.closest('.pcard,.prow'); if(c)clickPlayer(+c.dataset.id); });
     LIST_MQ.addEventListener('change',()=>{ render(); });
     $('#fmSel').addEventListener('click',()=>{ fmOpen=!fmOpen; $('#fmpick').classList.toggle('is-open', fmOpen); });
     $('#fmOthers').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; fmOpen=false; setFormation(b.dataset.fm); });
@@ -1616,7 +1581,6 @@
     $('#addPlayer').addEventListener('click',()=>{S.players.push(newPlayer(S.nextId++,'New player',null));drawRoster();save();});
     ['halfLen','shiftT','gkT'].forEach(k=>$('#'+k).addEventListener('change',e=>{S[k]=Math.max(1,+e.target.value||S[k]);save();render();}));
     $('#minF').addEventListener('change',e=>{ const v=e.target.value.trim(); if(v===''||isNaN(+v)){e.target.value=S.minF;return;} S.minF=Math.max(0,Math.min(4,Math.floor(+v))); e.target.value=S.minF; save();render();});
-    $('#sugBtn').addEventListener('click',()=>{ S.suggest=!S.suggest; clearLock(); setSugBtn(); save(); render(); });
     $('#resetGame').addEventListener('click',e=>{ const b=e.currentTarget;
       if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to reset'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Reset game'; },2500); return; }
       b.classList.remove('arm'); b.textContent='Reset game';
