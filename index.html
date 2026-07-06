@@ -137,7 +137,7 @@
   .pcard.is-sel{box-shadow:0 0 0 2px rgba(94,234,212,.55);}
   .p-cv.over{color:var(--warn);}
   /* sex marker — solid dot (pink F / blue M); pure CSS, renders identically on iOS */
-  .sexdot{display:inline-block; width:3px; height:3px; border-radius:50%; margin-left:7px; vertical-align:middle; flex:none;}
+  .sexdot{display:inline-block; width:4px; height:4px; border-radius:50%; margin-left:7px; vertical-align:middle; flex:none;}
   .sexdot.f{background:var(--fem);}
   .sexdot.m{background:var(--male);}
   .inel{opacity:.4;}
@@ -271,6 +271,16 @@
   .rec .rslot{flex:none; font-family:var(--mono); font-size:11px; font-weight:700; color:var(--muted); background:var(--panel-hi); padding:5px 8px; border-radius:7px;}
   .plan-empty{color:var(--muted-2); font-size:13px; padding:14px 2px;}
   .plan-label{margin:16px 0 10px;}
+  /* whole-game plan timeline */
+  .gp-start{font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:6px;}
+  .gp-start b{color:var(--text); font-weight:700; font-family:var(--mono); font-size:11px;}
+  .gp-half{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted-2); font-weight:700; padding:12px 0 2px;}
+  .gpr{display:flex; align-items:center; gap:11px; padding:8px 2px; border-bottom:1px solid var(--line);}
+  .gpr:last-child{border-bottom:0;}
+  .gpr .gt{font-family:var(--num); font-weight:600; font-size:14px; color:var(--muted); min-width:48px;}
+  .gpr .gx{flex:1; font-size:14.5px; font-weight:600; color:var(--muted);}
+  .gpr .gx b{color:var(--acc); font-weight:700;}
+  .gpr .gs{font-family:var(--mono); font-size:11px; font-weight:700; color:var(--muted); background:var(--panel-hi); padding:5px 8px; border-radius:7px;}
   .trow{display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; row-gap:7px; column-gap:10px; padding:11px 0; border-bottom:1px solid var(--line);}
   .trow .tn{font-size:14.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .trow .tzones{font-family:var(--mono); font-size:10px; color:var(--muted-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -381,7 +391,7 @@
       </div>
     </div>
     <div class="hud-r">
-      <button type="button" class="ghostbtn" id="planBtn">Targets</button>
+      <button type="button" class="ghostbtn" id="planBtn">Plan</button>
       <button type="button" class="ghostbtn" id="tlBtn">Events</button>
       <button type="button" class="ghostbtn" id="statsBtn">Stats</button>
       <button type="button" class="ghostbtn gear" id="editBtn">⚙</button>
@@ -427,11 +437,13 @@
 </div></div>
 
 <div class="scrim" id="planScrim"><div class="sheet">
-  <h2>Targets</h2><p class="sub" id="planSub"></p>
+  <h2>Game plan</h2><p class="sub" id="planSub"></p>
+  <div class="eyebrow plan-label">Planned rotations</div>
+  <div id="planGame"></div>
   <div id="planRecs"></div>
-  <div class="eyebrow plan-label">Tap a position: normal → prefer ★ → avoid ✕</div>
+  <div class="eyebrow plan-label">Targets · tap a position: normal → prefer ★ → avoid ✕</div>
   <div id="planTable"></div>
-  <div class="sheet-foot"><button type="button" id="planDone">Done</button></div>
+  <div class="sheet-foot"><button type="button" id="planCopy">Copy game</button><button type="button" id="planDone">Done</button></div>
 </div></div>
 
 <div class="scrim" id="scorerScrim"><div class="sheet">
@@ -933,9 +945,10 @@
   const short=s=>Math.floor(s/60)+':'+String(Math.floor(s)%60).padStart(2,'0');
   function openPlan(){ renderPlan(); $('#planScrim').classList.add('open'); }
   function renderPlan(){
-    if(!S.players.length){ $('#planSub').textContent='Add players in Roster & Settings first.'; $('#planRecs').innerHTML='<div class="plan-empty">No players yet.</div>'; $('#planTable').innerHTML=''; return; }
+    if(!S.players.length){ $('#planSub').textContent='Add players in Roster & Settings first.'; $('#planGame').innerHTML=''; $('#planRecs').innerHTML='<div class="plan-empty">No players yet.</div>'; $('#planTable').innerHTML=''; return; }
     const T=computeTargets();
     $('#planSub').textContent=`2 × ${S.halfLen}:00 halves · ${fm().label}${S.minF>0?` · min ${S.minF} ♀ on court`:''} · shift ≈ ${fmt(cadence())}`;
+    renderGamePlan();
     // keeper share at the next natural break — the only planning rec; live subs are the bench pill
     let recsHTML='';
     if(T.zs.goal&&T.remaining>120){
@@ -962,12 +975,82 @@
     }).join('');
   }
 
+  /* whole-game rotation plan — projects the full sequence of subs to the final whistle
+     using the same rule the live pill uses (longest shift off, most-owed on; ♀-min & prefs aware) */
+  function gamePlan(){
+    const halfLen=S.halfLen*60, totalGame=halfLen*2, C=cadence();
+    const T=computeTargets();
+    const st={}; S.players.forEach(p=>st[p.id]={pos:p.pos, sec:p.sec, shift:p.pos?p.shiftSec:0});
+    const femOn=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
+    const legal=(inP,outP)=>{ if(!S.minF) return true; const cur=femOn(); const next=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return next>=S.minF||next>=cur; };
+    const owed=id=>T.tgt[id]-st[id].sec;
+    const startLineup=slotDefs().map(s=>{const p=S.players.find(pp=>st[pp.id].pos===s.k); return {label:s.label, name:p?p.name:null};});
+    const elapsedGame=(S.half===2?halfLen:0)+Math.min(S.elapsed,halfLen);
+    const subs=[]; let t=elapsedGame, guard=0;
+    while(t<totalGame-15 && guard++<80){
+      const step=Math.min(C, totalGame-t);
+      S.players.forEach(p=>{ if(st[p.id].pos){ st[p.id].sec+=step; st[p.id].shift+=step; } });
+      t+=step;
+      if(t>=totalGame-15) break;
+      const bench=S.players.filter(p=>!st[p.id].pos).sort((a,b)=>owed(b.id)-owed(a.id)||a.id-b.id);
+      if(!bench.length) continue;
+      const mustFixFem=S.minF>0 && femOn()<S.minF && bench.some(b=>b.sex==='f');
+      let outs=S.players.filter(p=>st[p.id].pos && zoneOf(st[p.id].pos)!=='goal');
+      if(mustFixFem) outs=outs.filter(p=>p.sex!=='f');
+      outs.sort((a,b)=>st[b.id].shift-st[a.id].shift||a.id-b.id);
+      const pool=mustFixFem?bench.filter(b=>b.sex==='f'):bench;
+      for(const out of outs){
+        const z=zoneOf(st[out.id].pos);
+        const inP=pool.find(b=>legal(b,out)&&prefW(b,z)>=1)||pool.find(b=>legal(b,out));
+        if(inP){ const slot=st[out.id].pos; subs.push({t, half:t<=halfLen?1:2, inId:inP.id, outId:out.id, slot});
+          st[inP.id].pos=slot; st[inP.id].shift=0; st[out.id].pos=null; st[out.id].shift=0; break; }
+      }
+    }
+    return {startLineup, subs, halfLen};
+  }
+  function renderGamePlan(){
+    const g=gamePlan();
+    const start=g.startLineup.filter(s=>s.name).map(s=>`${esc(s.name)} <b>${s.label}</b>`).join(' · ');
+    let html=`<div class="gp-start">On now — ${start||'nobody on court'}</div>`;
+    if(!g.subs.length){ html+='<div class="plan-empty">No further subs projected — everyone tracks to target.</div>'; }
+    else { let lastHalf=0;
+      g.subs.forEach(s=>{ if(s.half!==lastHalf){ html+=`<div class="gp-half">${s.half===1?'1st half':'2nd half'}</div>`; lastHalf=s.half; }
+        const tt=s.half===2?s.t-g.halfLen:s.t;
+        html+=`<div class="gpr"><span class="gt">${short(Math.max(0,tt))}</span><span class="gx"><b>${esc(P(s.inId).name)}</b> for ${esc(P(s.outId).name)}</span><span class="gs">${s.slot}</span></div>`;
+      });
+    }
+    $('#planGame').innerHTML=`<div class="gp">${html}</div>`;
+  }
+
+  /* capture tonight's game — JSON to clipboard */
+  function gameJSON(){
+    return {
+      app:'Crush Control', exportedAt:new Date().toISOString(),
+      formation:S.formation, phase:S.phase, half:S.half, clock:fmt(S.elapsed),
+      score:{for:S.scoreUs, against:S.scoreThem},
+      settings:{halfMin:S.halfLen, shiftSec:S.shiftT, keeperSec:S.gkT, minFemales:S.minF},
+      players:S.players.map(p=>({name:p.name, sex:p.sex, position:p.pos||'bench',
+        totalTime:fmt(p.sec), totalSec:p.sec, goals:p.goals||0,
+        zoneSec:{goal:p.zone.goal, defence:p.zone.def, midfield:p.zone.mid, attack:p.zone.att}})),
+      goals:[...S.events].sort((a,b)=>a.half-b.half||a.t-b.t).map(e=>({
+        type:e.type==='for'?'for':'against', half:e.half, time:fmt(e.t),
+        scorer:e.type==='for'&&e.pid?(P(e.pid)?.name||null):null})),
+    };
+  }
+  function copyText(text, ok){
+    const done=()=>toast(ok,false);
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(()=>fbCopy(text,done)); }
+    else fbCopy(text,done);
+  }
+  function fbCopy(text,cb){ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.top='-1000px'; document.body.appendChild(ta); ta.focus(); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); cb&&cb(); }
+  function copyGame(){ copyText(JSON.stringify(gameJSON(),null,2), 'Game data copied — paste to save tonight’s game'); }
+
   /* burger menu (phone) */
   function openMenu(){
     const half={h1:'End 1st half',ht:'▶ Start 2nd half',h2:'End game',ft:null}[S.phase];
     let items='';
     if(half) items+=`<button type="button" class="menu-item ${S.phase==='ht'?'go':''}" data-act="half">${half}</button>`;
-    items+=`<button type="button" class="menu-item" data-act="plan">Targets<span class="mi-sub">minutes &amp; positions</span></button>
+    items+=`<button type="button" class="menu-item" data-act="plan">Game plan<span class="mi-sub">rotations &amp; targets</span></button>
       <button type="button" class="menu-item" data-act="events">Events<span class="mi-sub">match timeline</span></button>
       <button type="button" class="menu-item" data-act="stats">Stats<span class="mi-sub">time &amp; zones</span></button>
       <button type="button" class="menu-item" data-act="roster">Roster &amp; Settings</button>`;
@@ -1098,6 +1181,7 @@
       ({plan:openPlan, events:openTimeline, stats:openStats, roster:openRoster})[b.dataset.act]();
     });
     $('#planBtn').addEventListener('click',openPlan);
+    $('#planCopy').addEventListener('click',copyGame);
     $('#planDone').addEventListener('click',()=>$('#planScrim').classList.remove('open'));
     $('#planScrim').addEventListener('click',e=>{if(e.target.id==='planScrim')$('#planScrim').classList.remove('open');});
     $('#planTable').addEventListener('click',e=>{
