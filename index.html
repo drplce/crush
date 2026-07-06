@@ -571,7 +571,7 @@
       newPlayer(7,'Ana',null,'f'), newPlayer(8,'Ben',null),
     ],
     scoreUs:0,scoreThem:0, running:false,half:1,elapsed:0,
-    halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, nextId:9, sel:null, history:[],
+    halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, lastSub:0, nextId:9, sel:null, history:[],
     events:[], nextEid:1, phase:'h1', chimed:false, formation:'2-2'
   });
 
@@ -587,6 +587,7 @@
         S.formation=S.formation||'2-2';
         S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; p.pref=Object.assign(newPref(),p.pref||{}); if(p.sex!=='f')p.sex='m';});
         if(S.minF===undefined)S.minF=2;
+        if(S.lastSub===undefined)S.lastSub=0;
         // one-time defaults bump: only touch values still left at the old defaults, so custom settings are kept
         if(!S.dv){ if(S.halfLen===25)S.halfLen=16; if(S.shiftT===90)S.shiftT=180; S.dv=1; }
         return;
@@ -629,7 +630,7 @@
     S.history.push({type:'phase',prev:{phase:S.phase,half:S.half,elapsed:S.elapsed,chimed:S.chimed,running:S.running}});
     if(S.history.length>25)S.history.shift();
     if(S.phase==='h1'){ setRunning(false); S.phase='ht'; beep(); toast('Half-time — '+fmt(S.elapsed)+' played this half',true); }
-    else if(S.phase==='ht'){ S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; setRunning(true); toast('2nd half started',true); }
+    else if(S.phase==='ht'){ S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; S.lastSub=S.halfLen*60; setRunning(true); toast('2nd half started',true); }
     else if(S.phase==='h2'){ setRunning(false); S.phase='ft'; beep(); toast('Full-time — '+S.scoreUs+'–'+S.scoreThem,true); }
     render(); save();
   }
@@ -843,13 +844,14 @@
     pushMove('sub',[onP.id,offP.id]);
     const slot=offP.pos; offP.pos=null; offP.shiftSec=0; offP.posSec=0; offP.restSec=0;
     onP.pos=slot; onP.shiftSec=0; onP.posSec=0;
+    S.lastSub=gameElapsed();             // reset the rotation pace clock
     S.sel=null; toast(`<b>${esc(onP.name)}</b> on at ${slot} · ${esc(offP.name)} off`,true);
   }
   function clickSlot(pos){               // empty slot tapped
     if(S.sel===null) return;
     const a=P(S.sel); pushMove('fill',[a.id]);
     const fromBench=!a.pos;              // bench → fresh shift; on-court move → keep shift
-    a.pos=pos; a.posSec=0; if(fromBench) a.shiftSec=0;
+    a.pos=pos; a.posSec=0; if(fromBench){ a.shiftSec=0; S.lastSub=gameElapsed(); }
     S.sel=null; toast(`<b>${esc(a.name)}</b> in at ${pos}`,true); render(); save();
   }
 
@@ -899,6 +901,9 @@
     return {tgt,tgtZ,zones,zs,totalGame,elapsedGame,remaining,pace};
   }
   const paceDiff=(p,T)=>p.sec-(T.tgt[p.id]||0)*T.pace;   // negative = owed court time
+  const gameElapsed=()=>{const h=S.halfLen*60; return (S.half===2?h:0)+Math.min(S.elapsed,h);};
+  // rotations are PACED — one every shift-length from the last sub — so the live cue matches the game plan's schedule
+  const subDueIn=()=>Math.max(0,(S.lastSub||0)+cadence()-gameElapsed());
 
   /* next-sub recommendation — longest shift comes off, most-owed comes on.
      Rule-aware (min ♀), preference-aware (skip players who avoid the vacated zone),
@@ -910,8 +915,7 @@
     const T=computeTargets();
     const bench=S.players.filter(p=>!p.pos).sort((a,b)=>paceDiff(a,T)-paceDiff(b,T)||a.id-b.id);
     if(!bench.length) return null;
-    const C=cadence();
-    const due=o=>Math.max(0,C-o.shiftSec);
+    const d=subDueIn();
     // below the ♀ minimum with a bench female available: the ONLY useful sub is a girl on for a boy off
     const mustFixFem=S.minF>0&&femCourt()<S.minF&&bench.some(b=>b.sex==='f');
     let outs=onCourt().filter(p=>!isGK(p));
@@ -921,7 +925,7 @@
     // a locked pair is honoured only while it still helps — never while it leaves us short of the minimum
     if(lockedPair&&!mustFixFem){
       const inP=P(lockedPair.inId), outP=P(lockedPair.outId);
-      if(inP&&outP&&!inP.pos&&outP.pos&&!isGK(outP)&&swapLegal(inP,outP)) return {inId:inP.id,outId:outP.id,dueIn:due(outP)};
+      if(inP&&outP&&!inP.pos&&outP.pos&&!isGK(outP)&&swapLegal(inP,outP)) return {inId:inP.id,outId:outP.id,dueIn:d};
     }
     lockedPair=null;
     const pool=mustFixFem?bench.filter(b=>b.sex==='f'):bench;
@@ -929,7 +933,6 @@
       const z=zoneOf(out.pos);
       const inP=pool.find(b=>swapLegal(b,out)&&prefW(b,z)>=1)||pool.find(b=>swapLegal(b,out));
       if(inP){
-        const d=due(out);
         if(d<=30&&!mustFixFem) lockedPair={inId:inP.id,outId:out.id};   // don't lock the urgent-fix rec
         return {inId:inP.id,outId:out.id,dueIn:d};
       }
@@ -949,17 +952,6 @@
     const T=computeTargets();
     $('#planSub').textContent=`2 × ${S.halfLen}:00 halves · ${fm().label}${S.minF>0?` · min ${S.minF} ♀ on court`:''} · shift ≈ ${fmt(cadence())}`;
     renderGamePlan();
-    // keeper share at the next natural break — the only planning rec; live subs are the bench pill
-    let recsHTML='';
-    if(T.zs.goal&&T.remaining>120){
-      const cur=onCourt().find(p=>isGK(p));
-      if(cur){
-        const best=[...S.players].sort((a,b)=>(T.tgtZ[b.id].goal-b.zone.goal)-(T.tgtZ[a.id].goal-a.zone.goal))[0];
-        if(best&&best.id!==cur.id&&(T.tgtZ[best.id].goal-best.zone.goal)>60)
-          recsHTML=`<div class="rec"><span class="when">${S.phase==='h1'?'HT':'BRK'}</span><span class="rmain"><span class="rline"><b>${esc(best.name)}</b> takes goal</span><span class="rwhy">shares the keeper duty at the break</span></span><span class="rslot">GK</span></div>`;
-      }
-    }
-    $('#planRecs').innerHTML=recsHTML;
     $('#planTable').innerHTML=S.players.map(p=>{
       const diff=paceDiff(p,T);
       const dCls=Math.abs(diff)<30?'even':(diff>0?'ahead':'behind');
@@ -978,45 +970,60 @@
   /* whole-game rotation plan — projects the full sequence of subs to the final whistle
      using the same rule the live pill uses (longest shift off, most-owed on; ♀-min & prefs aware) */
   function gamePlan(){
-    const halfLen=S.halfLen*60, totalGame=halfLen*2, C=cadence();
+    const halfLen=S.halfLen*60, totalGame=halfLen*2, C=cadence(), GKC=Math.max(60,S.gkT||300);
     const T=computeTargets();
-    const st={}; S.players.forEach(p=>st[p.id]={pos:p.pos, sec:p.sec, shift:p.pos?p.shiftSec:0});
+    const st={}; S.players.forEach(p=>st[p.id]={pos:p.pos, sec:p.sec, shift:p.pos?p.shiftSec:0, goal:p.zone.goal});
+    const now=gameElapsed();
     const femOn=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
     const legal=(inP,outP)=>{ if(!S.minF) return true; const cur=femOn(); const next=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return next>=S.minF||next>=cur; };
     const owed=id=>T.tgt[id]-st[id].sec;
     const startLineup=slotDefs().map(s=>{const p=S.players.find(pp=>st[pp.id].pos===s.k); return {label:s.label, name:p?p.name:null};});
-    const elapsedGame=(S.half===2?halfLen:0)+Math.min(S.elapsed,halfLen);
-    const subs=[]; let t=elapsedGame, guard=0;
-    while(t<totalGame-15 && guard++<80){
-      const step=Math.min(C, totalGame-t);
-      S.players.forEach(p=>{ if(st[p.id].pos){ st[p.id].sec+=step; st[p.id].shift+=step; } });
-      t+=step;
-      if(t>=totalGame-15) break;
-      const bench=S.players.filter(p=>!st[p.id].pos).sort((a,b)=>owed(b.id)-owed(a.id)||a.id-b.id);
-      if(!bench.length) continue;
-      const mustFixFem=S.minF>0 && femOn()<S.minF && bench.some(b=>b.sex==='f');
-      let outs=S.players.filter(p=>st[p.id].pos && zoneOf(st[p.id].pos)!=='goal');
-      if(mustFixFem) outs=outs.filter(p=>p.sex!=='f');
-      outs.sort((a,b)=>st[b.id].shift-st[a.id].shift||a.id-b.id);
-      const pool=mustFixFem?bench.filter(b=>b.sex==='f'):bench;
-      for(const out of outs){
-        const z=zoneOf(st[out.id].pos);
-        const inP=pool.find(b=>legal(b,out)&&prefW(b,z)>=1)||pool.find(b=>legal(b,out));
-        if(inP){ const slot=st[out.id].pos; subs.push({t, half:t<=halfLen?1:2, inId:inP.id, outId:out.id, slot});
-          st[inP.id].pos=slot; st[inP.id].shift=0; st[out.id].pos=null; st[out.id].shift=0; break; }
+    const hasGoal=!!T.zs.goal;
+    const gk0=S.players.find(p=>p.pos&&isGK(p));
+    const advance=to=>{ const step=to-prev; if(step>0){ S.players.forEach(p=>{ const s=st[p.id]; if(s.pos){ s.sec+=step; s.shift+=step; if(zoneOf(s.pos)==='goal') s.goal+=step; } }); prev=to; } };
+    const events=[]; let prev=now, guard=0;
+    let subB=(S.lastSub||0)+C;                                       // next outfield rotation (paced from last sub)
+    let gkB=hasGoal ? now+Math.max(0, GKC-(gk0?gk0.posSec:0)) : Infinity;  // next keeper swap (from current goal stint)
+    while(guard++<120){
+      const subAt=Math.max(subB,now), gkAt=Math.max(gkB,now);
+      const doGk = hasGoal && gkAt<subAt;
+      const at=doGk?gkAt:subAt;
+      if(at>=totalGame-15) break;
+      advance(at);
+      if(doGk){
+        const gk=S.players.find(p=>st[p.id].pos && zoneOf(st[p.id].pos)==='goal');
+        const cand=S.players.filter(p=>st[p.id].pos && p.id!==(gk&&gk.id)).sort((a,b)=>st[a.id].goal-st[b.id].goal||a.id-b.id)[0];
+        if(gk&&cand){ const g=st[gk.id].pos, c=st[cand.id].pos; st[gk.id].pos=c; st[cand.id].pos=g; st[gk.id].shift=0; st[cand.id].shift=0;
+          events.push({t:at, half:at<=halfLen?1:2, kind:'gk', inId:cand.id, outId:gk.id}); }
+        gkB=at+GKC;
+      } else {
+        const bench=S.players.filter(p=>!st[p.id].pos).sort((a,b)=>owed(b.id)-owed(a.id)||a.id-b.id);
+        if(bench.length){
+          const mustFixFem=S.minF>0 && femOn()<S.minF && bench.some(b=>b.sex==='f');
+          let outs=S.players.filter(p=>st[p.id].pos && zoneOf(st[p.id].pos)!=='goal');
+          if(mustFixFem) outs=outs.filter(p=>p.sex!=='f');
+          outs.sort((a,b)=>st[b.id].shift-st[a.id].shift||a.id-b.id);
+          const pool=mustFixFem?bench.filter(b=>b.sex==='f'):bench;
+          for(const out of outs){ const z=zoneOf(st[out.id].pos);
+            const inP=pool.find(b=>legal(b,out)&&prefW(b,z)>=1)||pool.find(b=>legal(b,out));
+            if(inP){ const slot=st[out.id].pos; events.push({t:at, half:at<=halfLen?1:2, kind:'sub', inId:inP.id, outId:out.id, slot});
+              st[inP.id].pos=slot; st[inP.id].shift=0; st[out.id].pos=null; st[out.id].shift=0; break; } }
+        }
+        subB=at+C;
       }
     }
-    return {startLineup, subs, halfLen};
+    return {startLineup, events, halfLen};
   }
   function renderGamePlan(){
     const g=gamePlan();
     const start=g.startLineup.filter(s=>s.name).map(s=>`${esc(s.name)} <b>${s.label}</b>`).join(' · ');
     let html=`<div class="gp-start">On now — ${start||'nobody on court'}</div>`;
-    if(!g.subs.length){ html+='<div class="plan-empty">No further subs projected — everyone tracks to target.</div>'; }
+    if(!g.events.length){ html+='<div class="plan-empty">No further changes projected — everyone tracks to target.</div>'; }
     else { let lastHalf=0;
-      g.subs.forEach(s=>{ if(s.half!==lastHalf){ html+=`<div class="gp-half">${s.half===1?'1st half':'2nd half'}</div>`; lastHalf=s.half; }
-        const tt=s.half===2?s.t-g.halfLen:s.t;
-        html+=`<div class="gpr"><span class="gt">${short(Math.max(0,tt))}</span><span class="gx"><b>${esc(P(s.inId).name)}</b> for ${esc(P(s.outId).name)}</span><span class="gs">${s.slot}</span></div>`;
+      g.events.forEach(e=>{ if(e.half!==lastHalf){ html+=`<div class="gp-half">${e.half===1?'1st half':'2nd half'}</div>`; lastHalf=e.half; }
+        const tt=e.half===2?e.t-g.halfLen:e.t;
+        const txt = e.kind==='gk' ? `<b>${esc(P(e.inId).name)}</b> takes goal` : `<b>${esc(P(e.inId).name)}</b> for ${esc(P(e.outId).name)}`;
+        html+=`<div class="gpr"><span class="gt">${short(Math.max(0,tt))}</span><span class="gx">${txt}</span><span class="gs">${e.kind==='gk'?'GK':e.slot}</span></div>`;
       });
     }
     $('#planGame').innerHTML=`<div class="gp">${html}</div>`;
@@ -1208,7 +1215,7 @@
     $('#resetGame').addEventListener('click',e=>{ const b=e.currentTarget;
       if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to reset'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Reset game'; },2500); return; }
       b.classList.remove('arm'); b.textContent='Reset game';
-      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.sel=null;S.history=[];S.events=[];S.nextEid=1; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
+      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
     $('#rosterBody').addEventListener('click',e=>{ const row=e.target.closest('.roster-row'); if(!row)return; const p=P(+row.dataset.id);
       if(e.target.dataset.f==='sex'){ p.sex=p.sex==='f'?'m':'f'; drawRoster(); save(); }
       if(e.target.dataset.f==='pos'){ cyclePos(p); drawRoster(); save(); }
