@@ -183,6 +183,7 @@
   .p-tlbar i{height:100%; display:block;}
   .p-tlbar i.z-bn{background:rgba(255,255,255,.16);}
   .p-tlbar .tl-ghost i.z-bn{background:rgba(255,255,255,.09);}
+  .p-tlbar i.z-past{background:transparent;}   /* live plan already elapsed — let the actual fill show through */
   .p-tlbar .htm{position:absolute; top:-2px; bottom:-2px; width:2px; margin-left:-1px; border-radius:1px; background:var(--muted);}
   .p-tlbar .tl-next{position:absolute; top:-2px; bottom:-2px; width:2px; margin-left:-1px; border-radius:1px; background:var(--acc); opacity:.85;}
 
@@ -595,7 +596,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='15 · plan-notify';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='16 · live-replan';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -719,8 +720,9 @@
   const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const isGK=p=>zoneOf(p.pos)==='goal';
   const cadence=()=>Math.max(30,S.shiftT||90);            // one knob: target shift length
-  // over the shift ticker (GK: keeper stint) — a gentle "time's up" cue that turns the shift clock amber
-  const overTicker=p=>!!p.pos&&(isGK(p)?p.posSec>=(S.gkT||300):p.shiftSec>=cadence());
+  // shift clock turns amber only when THIS player is actually due to come off:
+  // with a plan active that's the plan's due-now moment (not the blanket shift length); otherwise fall back to the shift target.
+  const overTicker=p=>{ if(!p.pos) return false; if(projCache) return dueRow(p,curRec); return isGK(p)?p.posSec>=(S.gkT||300):p.shiftSec>=cadence(); };
   const overNow=()=>(S.phase==='h1'||S.phase==='h2')&&S.running&&S.elapsed>=S.halfLen*60;
   /* mixed-team rule */
   const femCourt=()=>onCourt().filter(p=>p.sex==='f').length;
@@ -779,7 +781,8 @@
   // so the bar fills up as the match runs and the unfilled tail is the time still to play.
   // denominator = planned full game, but never less than what's actually been played — so a slight
   // overrun just tops the bar out at 100% (rather than overflowing) and an early finish leaves a gap.
-  const segBars=(arr,denom)=>arr.map(g=>`<i class="${g.z==='bench'?'z-bn':(ZCLASS[g.z]||'z-bn')}" style="width:${(g.s/denom*100).toFixed(2)}%"></i>`).join('');
+  const segCls=z=>z==='past'?'z-past':(z==='bench'?'z-bn':(ZCLASS[z]||'z-bn'));
+  const segBars=(arr,denom)=>arr.map(g=>`<i class="${segCls(g.z)}" style="width:${(g.s/denom*100).toFixed(2)}%"></i>`).join('');
   function tlInner(p){
     const seg=p.seg||[]; const played=seg.reduce((s,g)=>s+g.s,0);
     const ghost=projCache&&projCache.byId[p.id];
@@ -1250,7 +1253,9 @@
   function newStrategy(name){ return {id:S.nextStratId++, name:name||'Plan', unit:'individual', shiftSec:S.shiftT||180, gkSec:S.gkT||300, gkPlan:'rotate', bias:0.5, starters:defaultStarters()}; }
   const curStrat=()=>S.strategies.find(x=>x.id===selStrat);
 
-  function simulate(strat){
+  // live=false → project the whole game from kickoff (planning/compare). live=true → project the REMAINDER
+  // from the actual current lineup, paced from the last real sub, so early/late subs re-plan dynamically.
+  function simulate(strat, live){
     const halfLen=S.halfLen*60, totalGame=halfLen*2;
     const C=Math.max(30, strat.shiftSec||S.shiftT||180), GKC=Math.max(60, strat.gkSec||S.gkT||300);
     const bias=Math.max(0,Math.min(1, strat.bias==null?0.5:strat.bias));
@@ -1258,9 +1263,13 @@
     const gkRotate=(strat.gkPlan||'rotate')!=='fixed';
     const T=computeTargets(), hasGoal=!!T.zs.goal, slots=slotDefs();
     const st={}, proj={}; S.players.forEach(p=>{st[p.id]={pos:null,sec:0,shift:0,goal:0}; proj[p.id]=[];});
-    const used=new Set(), starters=strat.starters||{};
-    slots.forEach(s=>{ const pid=starters[s.k]; if(pid!=null&&st[pid]&&!used.has(pid)){ st[pid].pos=s.k; used.add(pid);} });
-    slots.forEach(s=>{ if(!S.players.some(p=>st[p.id].pos===s.k)){ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[c.id].pos=s.k; used.add(c.id);} } });
+    if(live){
+      S.players.forEach(p=>{ const s=st[p.id]; s.pos=p.pos; s.sec=p.sec; s.shift=p.pos?p.shiftSec:0; s.goal=p.zone.goal||0; });
+    } else {
+      const used=new Set(), starters=strat.starters||{};
+      slots.forEach(s=>{ const pid=starters[s.k]; if(pid!=null&&st[pid]&&!used.has(pid)){ st[pid].pos=s.k; used.add(pid);} });
+      slots.forEach(s=>{ if(!S.players.some(p=>st[p.id].pos===s.k)){ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[c.id].pos=s.k; used.add(c.id);} } });
+    }
     const femOn=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
     const legal=(inP,outP)=>{ if(!S.minF)return true; const cur=femOn(); const nx=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return nx>=S.minF||nx>=cur; };
     const owed=id=>T.tgt[id]-st[id].sec;
@@ -1268,7 +1277,7 @@
     let area=0, earlyArea=0, lateArea=0; const W=Math.min(180, halfLen);
     const teamStrength=()=>S.players.reduce((s,p)=>s+(st[p.id].pos?fitFor(p,zoneOf(st[p.id].pos)):0),0);
     const ov=(a,b,c,d)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
-    let prev=0;
+    let prev=live?gameElapsed():0;
     const advance=to=>{ const step=to-prev; if(step>0){ const strg=teamStrength(); area+=step*strg; earlyArea+=ov(prev,to,0,W)*strg; lateArea+=ov(prev,to,totalGame-W,totalGame)*strg; S.players.forEach(p=>{const s=st[p.id]; const z=s.pos?zoneOf(s.pos):'bench'; const a=proj[p.id]; const last=a[a.length-1]; if(last&&last.z===z)last.s+=step; else a.push({z,s:step}); if(s.pos){s.sec+=step; s.shift+=step; if(zoneOf(s.pos)==='goal')s.goal+=step;}}); prev=to; } };
     const events=[];
     const rotateOnce=()=>{
@@ -1287,7 +1296,13 @@
       }
       return false;
     };
-    let subB=C, gkB=hasGoal?GKC:Infinity, htDone=false, guard=0;
+    let subB, gkB, htDone, guard=0;
+    if(live){
+      subB=Math.max(prev,(S.lastSub||0)+C);
+      const gk0=S.players.find(p=>p.pos&&isGK(p));
+      gkB=hasGoal? prev+Math.max(0,GKC-(gk0?gk0.posSec:0)) : Infinity;
+      htDone=(S.half===2);   // 2nd-half reset already happened in reality
+    } else { subB=C; gkB=hasGoal?GKC:Infinity; htDone=false; }
     while(guard++<400){
       const htAt=htDone?Infinity:halfLen, at=Math.min(subB,gkB,htAt);
       if(at>=totalGame-10) break;
@@ -1314,8 +1329,11 @@
   function computeProj(){
     const s=S.strategies.find(x=>x.id===S.activeStrat);
     if(!s){ projCache=null; return; }
-    try{ const sm=simulate(s); projCache={ byId:sm.proj, events:sm.events, plan:sm.totalGame, name:s.name }; }
-    catch(e){ projCache=null; }
+    try{ const sm=simulate(s, true);   // LIVE: project the remainder from the actual lineup, so it re-plans on early/late subs
+      const now=gameElapsed(), byId=sm.proj;
+      if(now>0.5) Object.keys(byId).forEach(id=>{ byId[id]=[{z:'past',s:now}].concat(byId[id]); });   // spacer so the ghost lines up with the full-game rail
+      projCache={ byId, events:sm.events, plan:sm.totalGame, name:s.name };
+    } catch(e){ projCache=null; }
   }
   // courtside Gantt of the active plan: planned changes as ticks, half-time notch, live "now" marker, next-change label
   function renderTeamTL(){
@@ -1378,7 +1396,7 @@
   function renderStrat(){
     $('#stratSub').textContent=`Compare plans across the full 2×${S.halfLen}:00 game${S.minF>0?` · min ${S.minF} ♀ on court`:''}. Player ratings (Roster) drive the “win” weighting.`;
     if(!S.strategies.length){ $('#stratList').innerHTML='<div class="plan-empty">No plans yet — tap “New plan”.</div>'; $('#stratEdit').innerHTML=''; return; }
-    const sims=S.strategies.map(simulate);
+    const sims=S.strategies.map(s=>simulate(s));   // from kickoff for planning/compare (never pass map's index as `live`)
     const bSpread=Math.min(...sims.map(s=>s.metrics.spread)), bKey=Math.max(...sims.map(s=>s.metrics.keyStr)), bAvg=Math.max(...sims.map(s=>s.metrics.avgStr));
     $('#stratList').innerHTML='<div class="st-cmp"><div class="st-head"><span>Plan</span><span>Spread</span><span>Avg</span><span>Key</span><span>Subs</span></div>'+sims.map(sm=>{ const s=sm.strat, m=sm.metrics, a=S.activeStrat===s.id;
       return `<button type="button" class="st-row ${selStrat===s.id?'sel':''} ${a?'active':''}" data-sid="${s.id}">
