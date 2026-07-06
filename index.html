@@ -270,6 +270,7 @@
   .menu-item.go{background:var(--acc); color:var(--acc-ink); border-radius:8px; margin:2px 0;}
   .menu-item.arm{border-radius:8px; margin:2px 0;}
   .menu-item .mi-sub{margin-left:auto; font-size:11px; color:var(--muted-2); font-weight:600;}
+  .menu-ver{text-align:center; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted-2); padding:8px 0 3px; font-weight:700;}
   .menu-item.go .mi-sub{color:var(--acc-ink); opacity:.7;}
 
   /* rotation plan sheet */
@@ -594,6 +595,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
+  const VERSION='15 · plan-notify';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1400,6 +1402,7 @@
       <button type="button" class="menu-item" data-act="events">Events<span class="mi-sub">match timeline</span></button>
       <button type="button" class="menu-item" data-act="stats">Stats<span class="mi-sub">time &amp; zones</span></button>
       <button type="button" class="menu-item" data-act="roster">Roster &amp; Settings</button>`;
+    items+=`<div class="menu-ver">Build ${VERSION}</div>`;
     $('#menuItems').innerHTML=items;
     $('#menuScrim').classList.add('open');
   }
