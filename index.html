@@ -431,6 +431,20 @@
   .togbtn{height:44px; min-width:64px; padding:0 16px; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted); font-size:14px; font-weight:700;}
   .togbtn.on{background:var(--acc); color:var(--acc-ink); border-color:transparent;}
 
+  /* team mini-timeline — courtside Gantt of the active plan */
+  .team-tl{margin:2px 0 10px; padding:10px 13px 13px; border:1px solid var(--line); border-radius:12px; background:var(--panel);}
+  .ttl-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px;}
+  .ttl-lead{font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted-2); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .ttl-next{font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .ttl-next b{color:var(--acc); font-weight:700;}
+  .ttl-track{position:relative; height:10px; border-radius:5px; background:rgba(255,255,255,.06);}
+  .ttl-fill{position:absolute; left:0; top:0; height:100%; border-radius:5px 0 0 5px; background:linear-gradient(90deg, rgba(94,234,212,.14), rgba(94,234,212,.34));}
+  .ttl-tick{position:absolute; top:-2px; height:14px; width:2px; margin-left:-1px; border-radius:1px; background:var(--muted); opacity:.5;}
+  .ttl-tick.gk{background:var(--gk); opacity:.85;}
+  .ttl-tick.next{background:var(--acc); opacity:1; width:2.5px; margin-left:-1.25px;}
+  .ttl-half{position:absolute; top:-3px; height:16px; width:2px; margin-left:-1px; background:var(--text); opacity:.45;}
+  .ttl-now{position:absolute; top:-4px; height:18px; width:3px; margin-left:-1.5px; background:var(--acc); border-radius:2px; box-shadow:0 0 8px rgba(94,234,212,.55);}
+
   /* toast */
   #toast{position:fixed; left:50%; bottom:90px; transform:translateX(-50%) translateY(20px); z-index:60; display:flex; align-items:center; gap:14px; padding:13px 16px 13px 18px; border-radius:14px; background:var(--panel-hi); border:1px solid var(--line); box-shadow:0 12px 34px rgba(0,0,0,.45); opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease; max-width:calc(100% - 36px); color:var(--text); font-family:var(--sans); -webkit-font-smoothing:antialiased;}
   #toast.show{opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto;}
@@ -476,6 +490,10 @@
           <button type="button" class="fmsel" id="fmSel"><span id="fmSelLabel">2-2</span></button>
           <div class="fmothers" id="fmOthers"></div>
         </div>
+      </div>
+      <div id="teamTL" class="team-tl" hidden>
+        <div class="ttl-top"><span class="ttl-lead" id="ttlLead">Game plan</span><span class="ttl-next" id="ttlNext"></span></div>
+        <div class="ttl-track" id="ttlTrack"></div>
       </div>
       <div id="courtWarn" class="court-warn" hidden></div>
       <div class="rink-wrap"><div class="rink" id="rink">
@@ -872,7 +890,7 @@
     if(below) warn.textContent=`Only ${femCourt()} ♀ on court — need ${S.minF}`;
     updateScores();
     renderClock(); updateUndo();
-    sizeCourtCards();
+    sizeCourtCards(); renderTeamTL();
     if($('#planScrim').classList.contains('open')) renderPlan();   // targets sheet re-solves whenever the game state changes
   }
   // per-second update: only touch text + classes, never rebuild (keeps taps reliable). A pair change forces one re-render.
@@ -904,7 +922,7 @@
     }
     $('#clockTime').textContent=fmt(S.elapsed);
     $('#clockBtn').classList.toggle('is-over', overNow());
-    updateScores();
+    updateScores(); renderTeamTL();   // move the "now" marker + countdown each second
   }
   function renderClock(){
     const btn=$('#clockBtn'), hb=$('#halfBtn');
@@ -1311,8 +1329,24 @@
   function computeProj(){
     const s=S.strategies.find(x=>x.id===S.activeStrat);
     if(!s){ projCache=null; return; }
-    try{ const sm=simulate(s); projCache={ byId:sm.proj, events:sm.events, plan:sm.totalGame }; }
+    try{ const sm=simulate(s); projCache={ byId:sm.proj, events:sm.events, plan:sm.totalGame, name:s.name }; }
     catch(e){ projCache=null; }
+  }
+  // courtside Gantt of the active plan: planned changes as ticks, half-time notch, live "now" marker, next-change label
+  function renderTeamTL(){
+    const el=$('#teamTL'); if(!el)return;
+    if(!projCache){ el.hidden=true; return; }
+    el.hidden=false;
+    const total=projCache.plan||1, now=gameElapsed(), evs=projCache.events;
+    const nextEv=evs.find(e=>e.t>now+0.5);
+    const pos=t=>Math.min(100,Math.max(0,t/total*100)).toFixed(2);
+    let ticks=evs.map(e=>`<span class="ttl-tick ${e.kind==='gk'?'gk':''} ${e===nextEv?'next':''}" style="left:${pos(e.t)}%"></span>`).join('');
+    ticks+=`<span class="ttl-half" style="left:50%"></span>`;
+    $('#ttlTrack').innerHTML=`<div class="ttl-fill" style="width:${pos(now)}%"></div>${ticks}<span class="ttl-now" style="left:${pos(now)}%"></span>`;
+    $('#ttlLead').textContent=projCache.name||'Game plan';
+    if(nextEv){ const dt=Math.max(0,Math.round(nextEv.t-now)), who=P(nextEv.inId), nm=esc(who?who.name:'—');
+      $('#ttlNext').innerHTML = nextEv.kind==='gk' ? `Next <b>${nm}</b> in goal · ${short(dt)}` : `Next <b>${nm}</b> → ${nextEv.slot} · ${short(dt)}`; }
+    else $('#ttlNext').textContent='Plan complete';
   }
 
   function cycleStarter(s,k){ s.starters=Object.assign({},s.starters); const ids=S.players.map(p=>p.id); if(!ids.length)return; let i=s.starters[k]!=null?ids.indexOf(s.starters[k]):-1; i=(i+1)%ids.length; const cand=ids[i]; Object.keys(s.starters).forEach(kk=>{ if(kk!==k&&s.starters[kk]===cand) delete s.starters[kk]; }); s.starters[k]=cand; }
