@@ -428,8 +428,8 @@
   </main>
 
   <footer class="actions">
-    <button type="button" class="act scored" id="scoredBtn">⚽ Goal</button>
-    <button type="button" class="act" id="againstBtn">Against <span class="big mono" id="againstNum">0</span></button>
+    <button type="button" class="act scored" id="scoredBtn">Goal</button>
+    <button type="button" class="act" id="againstBtn">Against</button>
     <button type="button" class="act undo" id="undoBtn" disabled>Undo</button>
   </footer>
 </div>
@@ -731,7 +731,7 @@
     $('#fmOthers').innerHTML=FORMATION_ORDER.filter(id=>id!==S.formation).map(id=>`<button type="button" data-fm="${id}">${FORMATIONS[id].label}</button>`).join('');
     $('#fmpick').classList.toggle('is-open', fmOpen);
   }
-  function updateScores(){ $('#scoreUs').textContent=S.scoreUs; $('#scoreThem').textContent=S.scoreThem; $('#againstNum').textContent=S.scoreThem; }
+  function updateScores(){ $('#scoreUs').textContent=S.scoreUs; $('#scoreThem').textContent=S.scoreThem; }
   let curT=null, curRec=null;
   function render(){
     curT=computeTargets(); curRec=getRec(); renderedPairKey=getRec._k;
