@@ -441,19 +441,34 @@
   /* phase-change confirm (end half etc.) — amber "tap again", not destructive red */
   .halfbtn.arm,.menu-item.arm{background:var(--warn) !important; color:#241a00 !important; border-color:transparent !important;}
   .addrow{margin-top:12px;} .addrow button{width:100%; height:48px; border-radius:12px; border:1px dashed var(--line); color:var(--acc); font-size:15px; font-weight:650;}
-  .fields{display:flex; gap:18px; flex-wrap:wrap; padding:14px 0 4px;}
+  .fm-field{display:flex; align-items:center; gap:12px; padding:14px 0 2px;}
+  .fm-field label{font-size:13px; color:var(--muted);}
+  .fields{display:flex; gap:18px; flex-wrap:wrap; padding:10px 0 4px;}
   .field{display:flex; align-items:center; gap:10px;}
   .field label{font-size:13px; color:var(--muted);}
   .field input{width:64px; height:44px; padding:0 10px; border-radius:10px; background:var(--board); border:1px solid var(--line); color:var(--text); font-size:16px; font-family:var(--mono); text-align:center;}
   .togbtn{height:44px; min-width:64px; padding:0 16px; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted); font-size:14px; font-weight:700;}
   .togbtn.on{background:var(--acc); color:var(--acc-ink); border-color:transparent;}
 
-  /* team mini-timeline — courtside Gantt of the active plan */
-  .team-tl{flex:none; margin:10px 16px 0; padding:9px 13px 12px; border:1px solid var(--line); border-radius:12px; background:var(--panel);}
-  .ttl-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px;}
-  .ttl-lead{font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted-2); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .ttl-next{font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  /* team mini-timeline — courtside Gantt of the active plan (tap to expand the upcoming changes) */
+  .team-tl{flex:none; display:block; width:auto; text-align:left; font:inherit; color:inherit; cursor:pointer; margin:10px 16px 0; padding:9px 13px 12px; border:1px solid var(--line); border-radius:12px; background:var(--panel);}
+  .ttl-top{display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:10px;}
+  .ttl-lead{font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted-2); font-weight:700; white-space:nowrap;}
+  .ttl-next{flex:1; text-align:right; font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .ttl-next b{color:var(--acc); font-weight:700;}
+  .ttl-chev{font-size:10px; color:var(--muted-2); transition:transform .18s ease; flex:none;}
+  .team-tl.open .ttl-chev{transform:rotate(180deg);}
+  .ttl-detail{display:none; margin-top:11px; border-top:1px solid var(--line); padding-top:9px;}
+  .team-tl.open .ttl-detail{display:block;}
+  .ttl-d-row{display:grid; grid-template-columns:44px 1fr auto; align-items:center; gap:8px; padding:4px 0; font-size:12.5px;}
+  .ttl-d-row .t{font-family:var(--mono); color:var(--muted-2); font-size:11px;}
+  .ttl-d-row .x b{color:var(--acc); font-weight:700;}
+  .ttl-d-row .s{font-family:var(--mono); font-size:9px; color:var(--muted-2); background:var(--board); border:1px solid var(--line); border-radius:5px; padding:1px 5px;}
+  .ttl-d-empty{font-size:12px; color:var(--muted-2); padding:2px 0;}
+  .fm-tag{font-family:var(--mono); font-size:12px; color:var(--muted-2); font-weight:700; letter-spacing:.04em;}
+  /* clock control dropdown */
+  #clockScrim{align-items:flex-start; justify-content:center;}
+  .clock-drop{margin-top:76px; width:min(280px, calc(100vw - 28px)); background:var(--panel); border:1px solid var(--line2); border-radius:14px; padding:6px; box-shadow:0 18px 44px rgba(0,0,0,.55); animation:menudrop .16s ease;}
   .ttl-track{position:relative; height:10px; border-radius:5px; background:rgba(255,255,255,.06);}
   .ttl-fill{position:absolute; left:0; top:0; height:100%; border-radius:5px 0 0 5px; background:linear-gradient(90deg, rgba(94,234,212,.14), rgba(94,234,212,.34));}
   .ttl-tick{position:absolute; top:-2px; height:14px; width:2px; margin-left:-1px; border-radius:1px; background:var(--muted); opacity:.5;}
@@ -478,7 +493,6 @@
     <div class="brand">
       <div class="wordmark">CRUSH<b>·</b>CONTROL</div>
       <div class="tag">Bench &amp; Goal Control</div>
-      <button type="button" class="halfbtn" id="halfBtn">End 1st half</button>
     </div>
     <div class="hud-c">
       <button type="button" class="clockbtn" id="clockBtn">
@@ -499,19 +513,17 @@
     </div>
   </header>
 
-  <div id="teamTL" class="team-tl" hidden>
-    <div class="ttl-top"><span class="ttl-lead" id="ttlLead">Game plan</span><span class="ttl-next" id="ttlNext"></span></div>
+  <button type="button" id="teamTL" class="team-tl" hidden>
+    <div class="ttl-top"><span class="ttl-lead" id="ttlLead">Game plan</span><span class="ttl-next" id="ttlNext"></span><span class="ttl-chev" id="ttlChev">▾</span></div>
     <div class="ttl-track" id="ttlTrack"></div>
-  </div>
+    <div class="ttl-detail" id="ttlDetail"></div>
+  </button>
 
   <main class="pitch">
     <section class="court-zone">
       <div class="court-head">
         <span class="eyebrow">On court</span>
-        <div class="fmpick" id="fmpick">
-          <button type="button" class="fmsel" id="fmSel"><span id="fmSelLabel">2-2</span></button>
-          <div class="fmothers" id="fmOthers"></div>
-        </div>
+        <span class="fm-tag" id="fmTag"></span>
       </div>
       <div id="courtWarn" class="court-warn" hidden></div>
       <div class="rink-wrap"><div class="rink" id="rink">
@@ -541,6 +553,8 @@
 <div class="scrim" id="menuScrim"><div class="menu-drop">
   <div id="menuItems"></div>
 </div></div>
+
+<div class="scrim" id="clockScrim"><div class="clock-drop" id="clockDrop"></div></div>
 
 <div class="scrim" id="planScrim"><div class="sheet">
   <h2>Game plan</h2><p class="sub" id="planSub"></p>
@@ -595,6 +609,7 @@
   <h2>Roster &amp; Settings</h2><p class="sub">Rename players, set starting positions (tap to cycle Bench → GK → D1 → D2 → F1 → F2), and tune the rotation alerts. Saves automatically.</p>
   <div id="rosterBody"></div>
   <div class="addrow"><button type="button" id="addPlayer">+ Add player</button></div>
+  <div class="field fm-field"><label>Formation</label><div id="fmSettings" class="seg-tog"></div></div>
   <div class="fields">
     <div class="field"><label for="halfLen">Half (min)</label><input class="mono" id="halfLen" type="number" min="1" max="60" inputmode="numeric"></div>
     <div class="field"><label for="shiftT">Shift length (sec)</label><input class="mono" id="shiftT" type="number" min="30" max="600" inputmode="numeric"></div>
@@ -609,7 +624,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='20 · wall-clock';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='21 · UI pass';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -775,12 +790,13 @@
     const hist={type:'phase',prev:{phase:S.phase,half:S.half,elapsed:S.elapsed,chimed:S.chimed,running:S.running}};
     S.history.push(hist);
     if(S.history.length>25)S.history.shift();
-    if(S.phase==='h1'){ setRunning(false); S.phase='ht'; S.h1Secs=S.elapsed; beep(); toast('Half-time — '+fmt(S.elapsed)+' played this half',true); }
-    else if(S.phase==='ht'){
-      // everyone rests through the ~3-min break, so shift/position timers start fresh for the 2nd half
+    if(S.phase==='h1'){
+      // end 1st half → straight into the 2nd half, PAUSED at 0:00. Everyone rests through the break,
+      // so shift/position timers start fresh; press ▶ (clock) to start the 2nd half when the ref does.
       hist.shifts=S.players.map(p=>({id:p.id,shiftSec:p.shiftSec,posSec:p.posSec}));
-      S.players.forEach(p=>{ p.shiftSec=0; p.posSec=0; });
-      S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; S.lastSub=S.halfLen*60; setRunning(true); toast('2nd half started — shift clocks reset',true); }
+      S.h1Secs=S.elapsed; S.players.forEach(p=>{ p.shiftSec=0; p.posSec=0; });
+      setRunning(false); S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; S.lastSub=S.halfLen*60; beep();
+      toast('Half-time — '+fmt(S.h1Secs)+' played. Tap ▶ to start the 2nd half',true); }
     else if(S.phase==='h2'){ setRunning(false); S.phase='ft'; beep(); toast('Full-time — '+S.scoreUs+'–'+S.scoreThem,true); }
     render(); save();
   }
@@ -790,7 +806,18 @@
     btn._txt=btn.textContent; btn.classList.add('arm'); btn.textContent=label;
     btn._armT=setTimeout(()=>{ if(btn.isConnected){ btn.classList.remove('arm'); btn.textContent=btn._txt; } },2500);
   }
-  const halfConfirmLabel=()=>({h1:'Tap again to end half',ht:'Tap again to start 2nd half',h2:'Tap again to end game',ft:''}[S.phase]);
+  const halfConfirmLabel=()=>({h1:'Tap again to end 1st half',h2:'Tap again to end game',ft:''}[S.phase]);
+  // clock is now a control hub: tap opens a dropdown with pause/play + end-half (no separate half button)
+  function openClock(){
+    const playing=S.phase==='h1'||S.phase==='h2';
+    let items='';
+    if(playing) items+=`<button type="button" class="menu-item go" data-cact="toggle">${S.running?'⏸ Pause clock':'▶ Start clock'}</button>`;
+    const half={h1:'End 1st half',h2:'End game'}[S.phase];
+    if(half) items+=`<button type="button" class="menu-item" data-cact="half">${half}</button>`;
+    if(S.phase==='ft') items+=`<div class="menu-ver">Full time · ${S.scoreUs}–${S.scoreThem} — reset in Roster &amp; Settings</div>`;
+    $('#clockDrop').innerHTML=items;
+    $('#clockScrim').classList.add('open');
+  }
   function beep(){ try{const ac=new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.type='sine';o.frequency.value=660;g.gain.setValueAtTime(.001,ac.currentTime);g.gain.exponentialRampToValueAtTime(.4,ac.currentTime+.02);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.6);o.start();o.stop(ac.currentTime+.62);}catch(e){} }
 
   /* render */
@@ -894,11 +921,6 @@
       ${tlBarHTML(p)}
     </button>`;
   }
-  function renderFmPick(){
-    $('#fmSelLabel').textContent=fm().label;
-    $('#fmOthers').innerHTML=FORMATION_ORDER.filter(id=>id!==S.formation).map(id=>`<button type="button" data-fm="${id}">${FORMATIONS[id].label}</button>`).join('');
-    $('#fmpick').classList.toggle('is-open', fmOpen);
-  }
   function updateScores(){ $('#scoreUs').textContent=S.scoreUs; $('#scoreThem').textContent=S.scoreThem; }
   let curT=null, curRec=null;
   function render(){
@@ -912,7 +934,7 @@
       $('#courtList').innerHTML='';
       $('#courtCards').innerHTML=slotDefs().map(s=>courtCardHTML(Object.assign({},s,map[s.k]))).join('');
     }
-    renderFmPick();
+    $('#fmTag').textContent=fm().label;
     // bench sorted by the same number the recommender ranks by: most owed first
     const bench=S.players.filter(p=>!p.pos).sort((a,b)=>paceDiff(a,curT)-paceDiff(b,curT)||a.id-b.id);
     $('#benchGrid').innerHTML = bench.map(p=>list?benchRowHTML(p):benchCardHTML(p)).join('') || '<div class="bench-empty">No bench players</div>';
@@ -956,16 +978,14 @@
     updateScores(); renderTeamTL();   // move the "now" marker + countdown each second
   }
   function renderClock(){
-    const btn=$('#clockBtn'), hb=$('#halfBtn');
+    const btn=$('#clockBtn');
     const playing=S.phase==='h1'||S.phase==='h2';
     $('#clockTime').textContent=fmt(S.elapsed);
     btn.classList.toggle('is-run', playing && S.running);
     btn.classList.toggle('is-idle', !playing);
     btn.classList.toggle('is-over', overNow());
-    $('#clockPhase').textContent={h1:'1st Half',ht:'Half-time',h2:'2nd Half',ft:'Full time'}[S.phase];
-    hb.textContent={h1:'End 1st half',ht:'▶ Start 2nd half',h2:'End game',ft:''}[S.phase];
-    hb.style.display=S.phase==='ft'?'none':'inline-flex';
-    hb.classList.toggle('go',S.phase==='ht');
+    // 2nd half not yet started reads as "half-time" until you press play
+    $('#clockPhase').textContent = (S.phase==='h2'&&!S.running&&S.elapsed===0) ? 'Half-time' : {h1:'1st Half',h2:'2nd Half',ft:'Full time'}[S.phase];
   }
 
   /* toast + undo */
@@ -1282,7 +1302,7 @@
   function currentStarters(){ const st={}; slotDefs().forEach(s=>{ const p=inSlot(s.k); if(p)st[s.k]=p.id; }); return st; }
   function autoStarters(){ const used=new Set(), st={}; slotDefs().forEach(s=>{ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} }); return st; }
   function defaultStarters(){ const cur=currentStarters(); return Object.keys(cur).length?cur:autoStarters(); }
-  function newStrategy(name){ return {id:S.nextStratId++, name:name||'Plan', unit:'individual', shiftSec:S.shiftT||180, gkSec:S.gkT||300, gkPlan:'rotate', bias:0.5, starters:defaultStarters()}; }
+  function newStrategy(name){ return {id:S.nextStratId++, name:name||'Plan', formation:S.formation, unit:'individual', shiftSec:S.shiftT||180, gkSec:S.gkT||300, gkPlan:'rotate', bias:0.5, starters:defaultStarters()}; }
   const curStrat=()=>S.strategies.find(x=>x.id===selStrat);
 
   // live=false → project the whole game from kickoff (planning/compare). live=true → project the REMAINDER
@@ -1371,26 +1391,30 @@
     } catch(e){ projCache=null; }
   }
   // courtside Gantt of the active plan: planned changes as ticks, half-time notch, live "now" marker, next-change label
+  const nmOf=id=>esc((P(id)||{}).name||'—');
+  const subArrow=e=>e.kind==='gk'?`GK ${nmOf(e.outId)} → <b>${nmOf(e.inId)}</b>`:`${nmOf(e.outId)} → <b>${nmOf(e.inId)}</b>`;   // on-court player → bench player
   function renderTeamTL(){
     const el=$('#teamTL'); if(!el)return;
-    if(!projCache){ el.hidden=true; return; }
+    if(!projCache){ el.hidden=true; el.classList.remove('open'); return; }
     el.hidden=false;
     const total=projCache.plan||1, now=gameElapsed(), evs=projCache.events;
-    const nextEv=evs.find(e=>e.t>=now-8);   // same 8s grace as the court pill so the two agree on "what's next"
+    const upcoming=evs.filter(e=>e.t>=now-8), nextEv=upcoming[0];   // 8s grace so this agrees with the court pill
     const pos=t=>Math.min(100,Math.max(0,t/total*100)).toFixed(2);
     let ticks=evs.map(e=>`<span class="ttl-tick ${e.kind==='gk'?'gk':''} ${e===nextEv?'next':''}" style="left:${pos(e.t)}%"></span>`).join('');
     ticks+=`<span class="ttl-half" style="left:50%"></span>`;
     $('#ttlTrack').innerHTML=`<div class="ttl-fill" style="width:${pos(now)}%"></div>${ticks}<span class="ttl-now" style="left:${pos(now)}%"></span>`;
     $('#ttlLead').textContent=projCache.name||'Game plan';
-    if(nextEv){ const dt=nextEv.t<=now?'now':short(Math.max(0,Math.round(nextEv.t-now))), inP=P(nextEv.inId), outP=P(nextEv.outId);
-      const inNm=esc(inP?inP.name:'—'), outNm=esc(outP?outP.name:'—');
-      $('#ttlNext').innerHTML = nextEv.kind==='gk' ? `Next GK <b>${inNm}</b> → ${outNm} · ${dt}` : `Next <b>${inNm}</b> → ${outNm} · ${dt}`; }
-    else $('#ttlNext').textContent='Plan complete';
+    $('#ttlNext').innerHTML = nextEv ? `Next ${subArrow(nextEv)} · ${nextEv.t<=now?'now':short(Math.round(nextEv.t-now))}` : 'Plan complete';
+    const rows=upcoming.slice(0,5).map(e=>`<div class="ttl-d-row"><span class="t">${e.t<=now?'now':short(Math.round(e.t-now))}</span><span class="x">${subArrow(e)}</span><span class="s">${e.kind==='gk'?'GK':e.slot}</span></div>`).join('');
+    $('#ttlDetail').innerHTML = rows || '<div class="ttl-d-empty">No further changes projected.</div>';
   }
 
   function cycleStarter(s,k){ s.starters=Object.assign({},s.starters); const ids=S.players.map(p=>p.id); if(!ids.length)return; let i=s.starters[k]!=null?ids.indexOf(s.starters[k]):-1; i=(i+1)%ids.length; const cand=ids[i]; Object.keys(s.starters).forEach(kk=>{ if(kk!==k&&s.starters[kk]===cand) delete s.starters[kk]; }); s.starters[k]=cand; }
   function applyStarters(starters){ if(!starters)return; S.players.forEach(p=>{p.pos=null;}); const used=new Set(); slotDefs().forEach(sl=>{ const pid=starters[sl.k]; const p=pid!=null?P(pid):null; if(p&&!used.has(p.id)){ p.pos=sl.k; p.posSec=0; p.shiftSec=0; used.add(p.id);} }); S.players.forEach(p=>{ if(!p.pos)p.restSec=p.restSec||0; }); }
-  function applyActive(s){ if(!s)return; S.shiftT=Math.max(30,s.shiftSec||S.shiftT); S.gkT=Math.max(30,s.gkSec||S.gkT); if(S.phase==='h1'&&S.elapsed===0&&!S.running){ applyStarters(s.starters); toast('Plan set active — start line & shift applied',false); } else { toast('Plan set active — shift & keeper timing applied',false); } render(); }
+  function applyActive(s){ if(!s)return; S.shiftT=Math.max(30,s.shiftSec||S.shiftT); S.gkT=Math.max(30,s.gkSec||S.gkT);
+    if(s.formation&&s.formation!==S.formation) setFormation(s.formation);
+    if(S.phase==='h1'&&S.elapsed===0&&!S.running){ applyStarters(s.starters); toast('Plan set active — formation, start line & shift applied',false); }
+    else { toast('Plan set active — shift & keeper timing applied',false); } render(); }
 
   function stratJSON(s){ const sm=simulate(s);
     return { app:'Crush Control · Strategy', name:s.name, formation:S.formation, halfMin:S.halfLen,
@@ -1418,6 +1442,7 @@
     const slotChips=slotDefs().map(sl=>{ const pid=(s.starters||{})[sl.k]; const p=pid!=null?P(pid):null; return `<button type="button" class="st-slot" data-act="slot" data-slot="${sl.k}"><b>${sl.label}</b>${p?esc(p.name):'—'}</button>`; }).join('');
     return `<div class="st-ed">
       <div class="ed-row"><label>Name</label><input class="nm ed-in" type="text" value="${esc(s.name)}" data-f="name"></div>
+      <div class="ed-row"><label>Formation</label><div class="seg-tog">${FORMATION_ORDER.map(id=>`<button type="button" data-act="fm" data-v="${id}" class="${(s.formation||S.formation)===id?'on':''}">${FORMATIONS[id].label}</button>`).join('')}</div></div>
       <div class="ed-row"><label>Rotate</label><div class="seg-tog"><button type="button" data-act="unit" data-v="individual" class="${s.unit!=='line'?'on':''}">Individually</button><button type="button" data-act="unit" data-v="line" class="${s.unit==='line'?'on':''}">In pairs</button></div></div>
       <div class="ed-row"><label>Shift</label><input class="mono ed-num" type="number" min="30" max="600" value="${s.shiftSec||S.shiftT}" data-f="shift"><span class="ed-unit">sec / change</span></div>
       <div class="ed-row"><label>Keeper</label><div class="seg-tog"><button type="button" data-act="gk" data-v="rotate" class="${(s.gkPlan||'rotate')!=='fixed'?'on':''}">Rotate</button><button type="button" data-act="gk" data-v="fixed" class="${s.gkPlan==='fixed'?'on':''}">Fixed</button></div></div>
@@ -1446,10 +1471,7 @@
 
   /* burger menu (phone) */
   function openMenu(){
-    const half={h1:'End 1st half',ht:'▶ Start 2nd half',h2:'End game',ft:null}[S.phase];
-    let items='';
-    if(half) items+=`<button type="button" class="menu-item ${S.phase==='ht'?'go':''}" data-act="half">${half}</button>`;
-    items+=`<button type="button" class="menu-item" data-act="strategy">Strategy<span class="mi-sub">plan &amp; compare rotations</span></button>
+    let items=`<button type="button" class="menu-item" data-act="strategy">Strategy<span class="mi-sub">plan &amp; compare rotations</span></button>
       <button type="button" class="menu-item" data-act="season">Season<span class="mi-sub">totals &amp; +/−</span></button>
       <button type="button" class="menu-item" data-act="plan">Game plan<span class="mi-sub">rotations &amp; targets</span></button>
       <button type="button" class="menu-item" data-act="events">Events<span class="mi-sub">match timeline</span></button>
@@ -1521,7 +1543,8 @@
   function openTimeline(){ renderTimeline(); $('#tlScrim').classList.add('open'); }
 
   /* roster editor */
-  function openRoster(){ $('#halfLen').value=S.halfLen; $('#shiftT').value=S.shiftT; $('#gkT').value=S.gkT; $('#minF').value=S.minF; drawRoster(); $('#rosterScrim').classList.add('open'); }
+  function drawFmSettings(){ $('#fmSettings').innerHTML=FORMATION_ORDER.map(id=>`<button type="button" data-fm="${id}" class="${S.formation===id?'on':''}">${FORMATIONS[id].label}</button>`).join(''); }
+  function openRoster(){ $('#halfLen').value=S.halfLen; $('#shiftT').value=S.shiftT; $('#gkT').value=S.gkT; $('#minF').value=S.minF; drawFmSettings(); drawRoster(); $('#rosterScrim').classList.add('open'); }
   const RATLBL={att:'ATT',def:'DEF',gk:'GK',fit:'FIT'};
   function drawRoster(){
     $('#rosterBody').innerHTML=S.players.map(p=>{
@@ -1581,10 +1604,12 @@
     document.addEventListener('visibilitychange',()=>{ if(!document.hidden) tick(); });
     window.addEventListener('focus',tick);
     window.addEventListener('pageshow',tick);
-    $('#fmSel').addEventListener('click',()=>{ fmOpen=!fmOpen; $('#fmpick').classList.toggle('is-open', fmOpen); });
-    $('#fmOthers').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; fmOpen=false; setFormation(b.dataset.fm); });
-    $('#clockBtn').addEventListener('click',()=>setRunning(!S.running));
-    $('#halfBtn').addEventListener('click',e=>armConfirm(e.currentTarget,halfConfirmLabel(),halfAction));
+    $('#clockBtn').addEventListener('click',openClock);
+    $('#clockScrim').addEventListener('click',e=>{ if(e.target.id==='clockScrim')$('#clockScrim').classList.remove('open'); });
+    $('#clockDrop').addEventListener('click',e=>{ const b=e.target.closest('[data-cact]'); if(!b)return;
+      if(b.dataset.cact==='toggle'){ $('#clockScrim').classList.remove('open'); setRunning(!S.running); return; }
+      if(b.dataset.cact==='half'){ armConfirm(b,halfConfirmLabel(),()=>{ $('#clockScrim').classList.remove('open'); halfAction(); }); return; } });
+    $('#teamTL').addEventListener('click',()=>{ $('#teamTL').classList.toggle('open'); });
     $('#scoredBtn').addEventListener('click',openScorer);
     $('#againstBtn').addEventListener('click',goalAgainst);
     $('#undoBtn').addEventListener('click',undoLast);
@@ -1607,6 +1632,7 @@
       p.pref[z]=prefW(p,z)>1?0.25:(prefW(p,z)<1?1:2);   // normal → prefer → avoid → normal
       save(); renderPlan();
     });
+    $('#fmSettings').addEventListener('click',e=>{ const b=e.target.closest('[data-fm]'); if(!b)return; setFormation(b.dataset.fm); drawFmSettings(); });
     $('#stratNew').addEventListener('click',()=>{ const s=newStrategy('Plan '+String.fromCharCode(65+S.strategies.length)); S.strategies.push(s); selStrat=s.id; save(); renderStrat(); });
     $('#stratDone').addEventListener('click',()=>{ $('#stratScrim').classList.remove('open'); render(); });   // pick up edits to the active plan on the live strip
     $('#stratCopy').addEventListener('click',()=>{ const s=curStrat(); if(s)copyText(JSON.stringify(stratJSON(s),null,2),'Plan copied — paste to save or share'); });
@@ -1615,6 +1641,7 @@
       const row=e.target.closest('.st-row'); if(row){ selStrat=+row.dataset.sid; renderStrat(); return; }
       const b=e.target.closest('[data-act]'); if(!b)return; const s=curStrat(); if(!s)return; const act=b.dataset.act;
       if(act==='unit'){ s.unit=b.dataset.v; }
+      else if(act==='fm'){ s.formation=b.dataset.v; setFormation(b.dataset.v); }   // plan carries its formation; apply to the board so the preview matches
       else if(act==='gk'){ s.gkPlan=b.dataset.v; }
       else if(act==='auto'){ s.starters=autoStarters(); }
       else if(act==='current'){ s.starters=currentStarters(); }
