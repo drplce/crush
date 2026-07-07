@@ -596,7 +596,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='16 · live-replan';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='17 · rebalance';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1032,6 +1032,12 @@
   const pmFor=p=>{ let pm=0; S.events.forEach(e=>{ if((e.type==='for'||e.type==='against')&&Array.isArray(e.onCourt)&&e.onCourt.some(o=>o.id===p.id)) pm+=e.type==='for'?1:-1; }); return pm; };
   const gaFor=p=>S.events.filter(e=>e.type==='against'&&Array.isArray(e.onCourt)&&e.onCourt.some(o=>o.id===p.id&&o.slot==='GK')).length;
   const sgn=n=>(n>0?'+':'')+n;
+  // court stints = times subbed on from the bench + 1 if they started the game on court
+  function stintsFor(p){
+    const subEv=S.events.filter(e=>e.type==='sub'&&(e.inId===p.id||e.outId===p.id)).sort((a,b)=>a.half-b.half||a.t-b.t);
+    const startedOn = p.sec>0 && (subEv.length===0 || subEv[0].outId===p.id);   // first sub touching them is an OFF → they were on at kickoff
+    return S.events.filter(e=>e.type==='sub'&&e.inId===p.id).length + (startedOn?1:0);
+  }
   function removeEvent(eid){ const i=S.events.findIndex(e=>e.eid===eid); if(i>=0)S.events.splice(i,1); S.history=S.history.filter(h=>h.eid!==eid); }
   function doReassign(newId){ const ev=S.events.find(e=>e.eid===S.reassign); if(ev){ const old=P(ev.pid); if(old&&old.goals)old.goals--; ev.pid=newId; const np=P(newId); np.goals=(np.goals||0)+1; } S.reassign=null; $('#scorerScrim').classList.remove('open'); renderTimeline(); render(); save(); toast('Scorer updated',false); }
   function deleteEvent(eid,btn){ const ev=S.events.find(e=>e.eid===eid); if(!ev)return;
@@ -1172,12 +1178,15 @@
       formation:S.formation, phase:S.phase, half:S.half, clock:fmt(S.elapsed),
       score:{for:S.scoreUs, against:S.scoreThem},
       settings:{halfMin:S.halfLen, shiftSec:S.shiftT, keeperSec:S.gkT, minFemales:S.minF},
-      players:S.players.map(p=>({name:p.name, sex:p.sex, position:p.pos||'bench',
+      players:S.players.map(p=>{ const stints=stintsFor(p); return {name:p.name, sex:p.sex, position:p.pos||'bench',
         totalTime:fmt(p.sec), totalSec:p.sec, goals:p.goals||0,
-        zoneSec:{goal:p.zone.goal, defence:p.zone.def, midfield:p.zone.mid, attack:p.zone.att}})),
+        plusMinus:pmFor(p), keeperGoalsAgainst:gaFor(p),
+        stints, avgShiftSec:stints?Math.round(p.sec/stints):0,
+        zoneSec:{goal:p.zone.goal, defence:p.zone.def, midfield:p.zone.mid, attack:p.zone.att}}; }),
       goals:[...S.events].filter(e=>e.type==='for'||e.type==='against').sort((a,b)=>a.half-b.half||a.t-b.t).map(e=>({
         type:e.type, half:e.half, time:fmt(e.t),
-        scorer:e.type==='for'&&e.pid?(P(e.pid)?.name||null):null})),
+        scorer:e.type==='for'&&e.pid?(P(e.pid)?.name||null):null,
+        onCourt:Array.isArray(e.onCourt)?e.onCourt.map(o=>({name:P(o.id)?(P(o.id).name):null, slot:o.slot})):null})),
       subs:[...S.events].filter(e=>e.type==='sub'||e.type==='swap').sort((a,b)=>a.half-b.half||a.t-b.t).map(e=>{
         const nm=id=>{const p=P(id); return p?p.name:null;};
         return e.type==='swap'
@@ -1274,6 +1283,9 @@
     const legal=(inP,outP)=>{ if(!S.minF)return true; const cur=femOn(); const nx=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return nx>=S.minF||nx>=cur; };
     const owed=id=>T.tgt[id]-st[id].sec;
     const scoreIn=(p,z)=>{ const owedN=Math.max(-1.2,Math.min(1.2, owed(p.id)/(T.tgt[p.id]||600))); const fitN=(fitFor(p,z)-3)/2; return (1-bias)*owedN + bias*fitN + owedN*1e-3; };
+    // who comes OFF: rebalance by benching the most over-target player (fairness), the weakest for the zone (win),
+    // always with a fatigue nudge so long shifts still turn over. This is what makes a lopsided game self-correct.
+    const scoreOut=p=>{ const z=zoneOf(st[p.id].pos); const overN=Math.max(-1.2,Math.min(1.2, -owed(p.id)/(T.tgt[p.id]||600))); const fitN=(fitFor(p,z)-3)/2; const shiftN=st[p.id].shift/Math.max(1,C); return (1-bias)*overN + bias*(-fitN) + 0.5*shiftN; };
     let area=0, earlyArea=0, lateArea=0; const W=Math.min(180, halfLen);
     const teamStrength=()=>S.players.reduce((s,p)=>s+(st[p.id].pos?fitFor(p,zoneOf(st[p.id].pos)):0),0);
     const ov=(a,b,c,d)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
@@ -1285,7 +1297,7 @@
       const mustFixFem=S.minF>0&&femOn()<S.minF&&bench.some(b=>b.sex==='f');
       let outs=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal');
       if(mustFixFem) outs=outs.filter(p=>p.sex!=='f');
-      outs.sort((a,b)=>st[b.id].shift-st[a.id].shift||a.id-b.id);
+      outs.sort((a,b)=>scoreOut(b)-scoreOut(a)||a.id-b.id);
       for(const out of outs){ const z=zoneOf(st[out.id].pos);
         const pool=(mustFixFem?bench.filter(b=>b.sex==='f'):bench).filter(b=>legal(b,out));
         if(!pool.length)continue;
