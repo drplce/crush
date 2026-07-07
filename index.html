@@ -330,14 +330,17 @@
   .avgline{position:absolute; top:-4px; bottom:-4px; width:2px; background:var(--text); opacity:.5;}
   .avgline::after{content:"avg"; position:absolute; top:-15px; left:50%; transform:translateX(-50%); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--text); opacity:.7;}
   .histo-wrap{position:relative; padding-top:14px;}
-  #statGA{margin-top:18px;}
-  .ga-head{margin:0 0 8px;}
-  .ga-row{display:grid; grid-template-columns:1fr 74px 26px; align-items:center; gap:10px; padding:5px 0;}
-  .ga-row .ga-nm{font-size:13px; color:var(--text); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .ga-row .ga-nm small{color:var(--gk); font-weight:700; font-size:9px; letter-spacing:.04em; text-transform:uppercase; margin-left:4px;}
-  .ga-track{height:8px; background:rgba(255,255,255,.05); border-radius:4px; overflow:hidden;}
-  .ga-track>span{display:block; height:100%; background:var(--att); opacity:.75;}
-  .ga-row .ga-n{text-align:right; font-size:13px; color:var(--att); font-weight:700;}
+  #statImpact{margin:14px 0 4px;}
+  .ga-head{margin:0 0 6px;}
+  .imp-row{display:grid; grid-template-columns:1fr 42px 42px 46px; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line);}
+  .imp-row.imp-head{border-bottom:1px solid var(--line2); padding-bottom:4px;}
+  .imp-head span{font-size:8px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted-2); font-weight:700; text-align:right;}
+  .imp-nm{font-size:13px; color:var(--text); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .imp-nm small{color:var(--gk); font-weight:700; font-size:9px; letter-spacing:.04em; text-transform:uppercase; margin-left:4px;}
+  .imp-f{text-align:right; font-family:var(--mono); font-size:13px; color:var(--acc);}
+  .imp-a{text-align:right; font-family:var(--mono); font-size:13px; color:var(--att);}
+  .imp-net{text-align:right; font-family:var(--mono); font-size:14px; font-weight:700; color:var(--muted);}
+  .imp-net.pos{color:var(--acc);} .imp-net.neg{color:var(--att);}
   .ga-note{font-size:12px; color:var(--muted-2); padding:8px 0;}
 
   /* match timeline */
@@ -582,9 +585,9 @@
 <div class="scrim" id="statsScrim"><div class="sheet">
   <h2>Time &amp; zones</h2><p class="sub">Court time per player, split by zone — so you can balance minutes and share the keeper duty.</p>
   <div class="stat-summary" id="statSummary"></div>
+  <div id="statImpact"></div>
   <div class="zlegend"><span><i class="z-att"></i>Attack</span><span><i class="z-mid"></i>Midfield</span><span><i class="z-def"></i>Defence</span><span><i class="z-gk"></i>Goal</span></div>
   <div class="histo-wrap"><div class="histo" id="histo"></div></div>
-  <div id="statGA"></div>
   <div class="sheet-foot"><button type="button" id="statsDone">Done</button></div>
 </div></div>
 
@@ -606,7 +609,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='18 · GA lineups';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='19 · impact board';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1463,17 +1466,15 @@
       const pm=pmFor(p); const pmHtml=hasPM?`<span class="hpm ${pm>0?'pos':(pm<0?'neg':'')}">${sgn(pm)}</span>`:'';
       return `<div class="hrow"><span class="hn">${esc(p.name)} <small>${p.pos||'bench'}</small></span><div class="htrack">${segs}</div>${pmHtml}<span class="ht mono">${fmt(p.sec)}</span></div>`;
     }).join('');
-    // who was on court when we conceded — spot the defensive leak without reading the export
-    const againstEv=S.events.filter(e=>e.type==='against'&&Array.isArray(e.onCourt));
-    if(againstEv.length){
-      const onAg={}, gkAg={};
-      againstEv.forEach(e=>e.onCourt.forEach(o=>{ onAg[o.id]=(onAg[o.id]||0)+1; if(o.slot==='GK')gkAg[o.id]=(gkAg[o.id]||0)+1; }));
-      const rows=S.players.filter(p=>onAg[p.id]).sort((a,b)=>onAg[b.id]-onAg[a.id]||a.id-b.id).map(p=>{
-        const n=onAg[p.id], g=gkAg[p.id]||0;
-        return `<div class="ga-row"><span class="ga-nm">${esc(p.name)}${g?` <small>${g} in goal</small>`:''}</span><div class="ga-track"><span style="width:${(n/againstEv.length*100).toFixed(0)}%"></span></div><span class="ga-n mono">${n}</span></div>`;
-      }).join('');
-      $('#statGA').innerHTML=`<div class="eyebrow ga-head">On court when conceding · ${againstEv.length} against</div>${rows}`;
-    } else $('#statGA').innerHTML = S.scoreThem>0 ? '<div class="ga-note">Goal-against lineups weren’t recorded for this game.</div>' : '';
+    // on-court impact (+/−): goals scored vs conceded while each player was on — who swings the game
+    const gEv=S.events.filter(e=>(e.type==='for'||e.type==='against')&&Array.isArray(e.onCourt));
+    if(gEv.length){
+      const on={}; gEv.forEach(e=>e.onCourt.forEach(o=>{ const r=on[o.id]||(on[o.id]={f:0,a:0,gk:0}); if(e.type==='for')r.f++; else { r.a++; if(o.slot==='GK')r.gk++; } }));
+      const rows=S.players.filter(p=>on[p.id]).map(p=>({p,f:on[p.id].f,a:on[p.id].a,gk:on[p.id].gk,net:on[p.id].f-on[p.id].a}))
+        .sort((x,y)=>y.net-x.net||y.f-x.f||x.p.id-y.p.id).map(x=>
+          `<div class="imp-row"><span class="imp-nm">${esc(x.p.name)}${x.gk?` <small>${x.gk} in goal</small>`:''}</span><span class="imp-f">+${x.f}</span><span class="imp-a">−${x.a}</span><span class="imp-net ${x.net>0?'pos':(x.net<0?'neg':'')}">${sgn(x.net)}</span></div>`).join('');
+      $('#statImpact').innerHTML=`<div class="eyebrow ga-head">On-court impact · goals while on</div><div class="imp-row imp-head"><span></span><span>For</span><span>Ag</span><span>+/−</span></div>${rows}`;
+    } else $('#statImpact').innerHTML = (S.scoreUs+S.scoreThem)>0 ? '<div class="ga-note">Goal lineups weren’t recorded for this game.</div>' : '';
     $('.histo-wrap').querySelectorAll('.avgline').forEach(n=>n.remove());
     $('#statsScrim').classList.add('open');
     requestAnimationFrame(()=>{
