@@ -609,7 +609,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='19 · impact board';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='20 · wall-clock';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -749,17 +749,27 @@
   // log a substitution/position change to the match timeline, linked to the just-pushed move so Undo removes it too
   function logSub(ev){ ev.eid=S.nextEid++; ev.half=S.half; ev.t=S.elapsed; S.events.push(ev); const h=S.history[S.history.length-1]; if(h&&h.type==='move')h.eid=ev.eid; }
 
-  /* clock */
-  let timer=null;
-  // append one second to a player's chronological timeline (run-length: grow the last run if same, else start a new one)
-  function pushSeg(p,z){ const a=p.seg||(p.seg=[]); const last=a[a.length-1]; if(last&&last.z===z)last.s++; else a.push({z,s:1}); }
-  function tick(){
-    S.elapsed++;
-    S.players.forEach(p=>{ if(p.pos){ p.sec++; p.shiftSec++; p.posSec++; p.zone[zoneOf(p.pos)]++; } else { p.restSec++; } pushSeg(p, p.pos?zoneOf(p.pos):'bench'); });
+  /* clock — driven by WALL time, not by counting interval ticks, so it stays accurate when the
+     tab is backgrounded / the phone locks (browsers throttle setInterval, so we advance by the
+     real elapsed delta and catch up on the next tick or when the app regains focus). */
+  let timer=null, tickAt=0;   // tickAt = wall-clock ms already accounted for (transient, never persisted)
+  // append `n` seconds to a player's chronological timeline (run-length: grow the last run, else start a new one)
+  function pushSeg(p,z,n){ const a=p.seg||(p.seg=[]); const last=a[a.length-1]; if(last&&last.z===z)last.s+=n; else a.push({z,s:n}); }
+  function advanceClock(step){
+    if(step<=0) return;
+    S.elapsed+=step;
+    S.players.forEach(p=>{ if(p.pos){ p.sec+=step; p.shiftSec+=step; p.posSec+=step; p.zone[zoneOf(p.pos)]+=step; } else { p.restSec+=step; } pushSeg(p, p.pos?zoneOf(p.pos):'bench', step); });
     if(!S.chimed && S.elapsed>=S.halfLen*60){ S.chimed=true; beep(); toast((S.phase==='h1'?'1st':'2nd')+' half target reached — clock keeps running, end the half when the ref does',false); renderClock(); }
     liveUpdate(); save();
   }
-  function setRunning(run){ if(S.phase!=='h1'&&S.phase!=='h2')return; S.running=run; if(run){if(!timer)timer=setInterval(tick,1000);} else {clearInterval(timer);timer=null;} render(); save(); }
+  function tick(){
+    if(!S.running) return;
+    const now=Date.now(); const step=Math.floor((now-tickAt)/1000);   // whole seconds of real time since last accounted
+    if(step<=0) return;
+    tickAt+=step*1000;                                                // keep the sub-second remainder → no drift
+    advanceClock(step);
+  }
+  function setRunning(run){ if(S.phase!=='h1'&&S.phase!=='h2')return; S.running=run; if(run){ tickAt=Date.now(); if(!timer)timer=setInterval(tick,1000); } else { if(timer){clearInterval(timer);timer=null;} } render(); save(); }
   function halfAction(){
     // snapshot the phase state so the transition can be undone (footer Undo or the toast)
     const hist={type:'phase',prev:{phase:S.phase,half:S.half,elapsed:S.elapsed,chimed:S.chimed,running:S.running}};
@@ -1567,6 +1577,10 @@
     $('#courtList').addEventListener('click',courtTap);
     $('#benchGrid').addEventListener('click',e=>{ const c=e.target.closest('.pcard,.prow'); if(c)clickPlayer(+c.dataset.id); });
     LIST_MQ.addEventListener('change',()=>{ render(); });
+    // regain focus / unlock the phone → immediately reconcile the clock to real time (don't wait for the throttled interval)
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) tick(); });
+    window.addEventListener('focus',tick);
+    window.addEventListener('pageshow',tick);
     $('#fmSel').addEventListener('click',()=>{ fmOpen=!fmOpen; $('#fmpick').classList.toggle('is-open', fmOpen); });
     $('#fmOthers').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; fmOpen=false; setFormation(b.dataset.fm); });
     $('#clockBtn').addEventListener('click',()=>setRunning(!S.running));
