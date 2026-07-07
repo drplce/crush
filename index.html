@@ -52,11 +52,10 @@
 
   .hud-c{flex:none; display:flex; flex-direction:column; align-items:center; gap:10px;}
   /* the clock IS the start/pause control — play/pause glyph signals it */
-  .clockbtn{display:flex; align-items:center; gap:12px; height:56px; padding:0 20px; border-radius:16px; border:1px solid var(--line2); background:var(--panel-hi); color:var(--text); transition:background .18s ease,color .18s ease,box-shadow .18s ease,opacity .18s ease;}
+  /* the box (cyan ring when running / cyan fill when paused) lives on .clock-wrap; the button is just the content */
+  .clockbtn{display:flex; align-items:center; gap:12px; height:56px; padding:0 20px; border-radius:16px; border:0; background:transparent; color:inherit; transition:color .18s ease;}
   .clockbtn:active{transform:scale(.97);}
-  .clockbtn.is-run{background:var(--acc); color:var(--acc-ink); border-color:transparent; box-shadow:0 6px 22px rgba(94,234,212,.18);}
   .clockbtn.is-idle{opacity:.6;}
-  .clockbtn.is-over{box-shadow:0 0 0 2px var(--warn);}
   .clockbtn .cico{position:relative; display:inline-flex; width:14px; height:16px; flex:none;}
   .clockbtn.is-run .cico::before,.clockbtn.is-run .cico::after{content:""; position:absolute; top:0; bottom:0; width:4px; border-radius:1px; background:currentColor;}
   .clockbtn.is-run .cico::before{left:1px;}
@@ -467,12 +466,17 @@
   .ttl-d-row .s{font-family:var(--mono); font-size:9px; color:var(--muted-2); background:var(--board); border:1px solid var(--line); border-radius:5px; padding:1px 5px;}
   .ttl-d-empty{font-size:12px; color:var(--muted-2); padding:2px 0;}
   .fm-tag{font-family:var(--mono); font-size:12px; color:var(--muted-2); font-weight:700; letter-spacing:.04em;}
-  /* clock control — tap toggles play/pause; when paused it expands a slim End-half button right under the clock */
-  .clock-wrap{position:relative; display:flex; flex-direction:column; align-items:stretch;}
-  .clock-exp{position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:45; animation:menudrop .16s ease;}
-  .clock-end{width:100%; height:38px; border-radius:12px; background:var(--panel-hi); border:1px solid var(--line2); color:var(--text); font-size:12.5px; font-weight:700; letter-spacing:.02em; box-shadow:0 12px 30px rgba(0,0,0,.55);}
+  /* clock control — one box: cyan ring while running (like the selection ring); cyan fill when paused,
+     and the End-half button drops into the SAME box (seamless bottom) via a two-tap confirm. */
+  .clock-wrap{position:relative; display:flex; flex-direction:column; align-items:stretch; color:var(--text); border-radius:16px; transition:background .18s ease, box-shadow .18s ease;}
+  .clock-wrap.running{background:var(--panel-hi); box-shadow:inset 0 0 0 2px var(--acc);}
+  .clock-wrap.running.over{box-shadow:inset 0 0 0 2px var(--warn);}
+  .clock-wrap.paused{background:var(--acc); color:var(--acc-ink);}
+  .clock-wrap.exp-open{border-radius:16px 16px 0 0;}
+  .clock-exp{position:absolute; top:100%; left:0; right:0; z-index:45; background:var(--acc); border-radius:0 0 16px 16px; padding:2px 8px 8px; box-shadow:0 16px 32px rgba(0,0,0,.5);}
+  .clock-end{width:100%; height:36px; border-radius:10px; background:rgba(8,19,26,.14); border:1px solid rgba(8,19,26,.22); color:var(--acc-ink); font-size:12.5px; font-weight:700; letter-spacing:.02em;}
   .clock-end:active{transform:scale(.97);}
-  .clock-end.arm{background:var(--warn); color:#241a00; border-color:transparent;}
+  .clock-end.arm{background:var(--acc-ink); color:var(--warn); border-color:transparent;}
   .ttl-track{position:relative; height:10px; border-radius:5px; background:rgba(255,255,255,.06);}
   .ttl-fill{position:absolute; left:0; top:0; height:100%; border-radius:5px 0 0 5px; background:linear-gradient(90deg, rgba(94,234,212,.14), rgba(94,234,212,.34));}
   .ttl-tick{position:absolute; top:-2px; height:14px; width:2px; margin-left:-1px; border-radius:1px; background:var(--muted); opacity:.5;}
@@ -629,7 +633,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='22 · clock expand';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='23 · clock box';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -968,23 +972,27 @@
       });
     }
     $('#clockTime').textContent=fmt(S.elapsed);
-    $('#clockBtn').classList.toggle('is-over', overNow());
+    $('#clockBtn').closest('.clock-wrap').classList.toggle('over', overNow());   // amber ring the moment the half target is passed
     updateScores(); renderTeamTL();   // move the "now" marker + countdown each second
   }
   function renderClock(){
-    const btn=$('#clockBtn');
+    const btn=$('#clockBtn'), wrap=btn.closest('.clock-wrap');
     const playing=S.phase==='h1'||S.phase==='h2';
     $('#clockTime').textContent=fmt(S.elapsed);
-    btn.classList.toggle('is-run', playing && S.running);
+    btn.classList.toggle('is-run', playing && S.running);   // drives the play/pause glyph
     btn.classList.toggle('is-idle', !playing);
-    btn.classList.toggle('is-over', overNow());
     // 2nd half not yet started reads as "half-time" until you press play
     $('#clockPhase').textContent = (S.phase==='h2'&&!S.running&&S.elapsed===0) ? 'Half-time' : {h1:'1st Half',h2:'2nd Half',ft:'Full time'}[S.phase];
-    // paused mid-half → expand a slim End-half button under the clock (two-tap confirm)
+    // paused mid-half → the box expands to hold a two-tap End-half button in the same box
     const exp=$('#clockExp'), endBtn=$('#clockEnd'), showEnd=playing && !S.running && S.elapsed>0;
     if(exp){ exp.hidden=!showEnd;
       if(showEnd){ if(!endBtn.classList.contains('arm')) endBtn.textContent={h1:'End 1st half',h2:'End game'}[S.phase]; }
       else if(endBtn.classList.contains('arm')){ clearTimeout(endBtn._armT); endBtn.classList.remove('arm'); } }
+    // the box itself: cyan ring while running, cyan fill when paused, amber ring when over the half target
+    wrap.classList.toggle('running', playing && S.running);
+    wrap.classList.toggle('paused', playing && !S.running);
+    wrap.classList.toggle('over', overNow());
+    wrap.classList.toggle('exp-open', showEnd);
   }
 
   /* toast + undo */
