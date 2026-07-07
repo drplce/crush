@@ -211,7 +211,8 @@
     .burger{display:flex; justify-self:start;}
     .brand,.hud-r{display:none;}
     .hud-c{display:contents;}
-    .clockbtn{grid-column:2; height:54px; padding:0 17px; gap:10px;}
+    .clock-wrap{grid-column:2; justify-self:center;}
+    .clockbtn{height:54px; padding:0 17px; gap:10px;}
     .clockbtn .ct{font-size:26px;}
     .clockbtn .cico{width:13px; height:15px;}
     .clockbtn:not(.is-run) .cico::before{border-left-width:11px; border-top-width:7px; border-bottom-width:7px;}
@@ -466,9 +467,12 @@
   .ttl-d-row .s{font-family:var(--mono); font-size:9px; color:var(--muted-2); background:var(--board); border:1px solid var(--line); border-radius:5px; padding:1px 5px;}
   .ttl-d-empty{font-size:12px; color:var(--muted-2); padding:2px 0;}
   .fm-tag{font-family:var(--mono); font-size:12px; color:var(--muted-2); font-weight:700; letter-spacing:.04em;}
-  /* clock control dropdown */
-  #clockScrim{align-items:flex-start; justify-content:center;}
-  .clock-drop{margin-top:76px; width:min(280px, calc(100vw - 28px)); background:var(--panel); border:1px solid var(--line2); border-radius:14px; padding:6px; box-shadow:0 18px 44px rgba(0,0,0,.55); animation:menudrop .16s ease;}
+  /* clock control — tap toggles play/pause; when paused it expands a slim End-half button right under the clock */
+  .clock-wrap{position:relative; display:flex; flex-direction:column; align-items:stretch;}
+  .clock-exp{position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:45; animation:menudrop .16s ease;}
+  .clock-end{width:100%; height:38px; border-radius:12px; background:var(--panel-hi); border:1px solid var(--line2); color:var(--text); font-size:12.5px; font-weight:700; letter-spacing:.02em; box-shadow:0 12px 30px rgba(0,0,0,.55);}
+  .clock-end:active{transform:scale(.97);}
+  .clock-end.arm{background:var(--warn); color:#241a00; border-color:transparent;}
   .ttl-track{position:relative; height:10px; border-radius:5px; background:rgba(255,255,255,.06);}
   .ttl-fill{position:absolute; left:0; top:0; height:100%; border-radius:5px 0 0 5px; background:linear-gradient(90deg, rgba(94,234,212,.14), rgba(94,234,212,.34));}
   .ttl-tick{position:absolute; top:-2px; height:14px; width:2px; margin-left:-1px; border-radius:1px; background:var(--muted); opacity:.5;}
@@ -495,10 +499,13 @@
       <div class="tag">Bench &amp; Goal Control</div>
     </div>
     <div class="hud-c">
-      <button type="button" class="clockbtn" id="clockBtn">
-        <span class="cico"></span>
-        <span class="cwrap"><span class="ct mono" id="clockTime">00:00</span><span class="cs" id="clockPhase">1st Half</span></span>
-      </button>
+      <div class="clock-wrap">
+        <button type="button" class="clockbtn" id="clockBtn">
+          <span class="cico"></span>
+          <span class="cwrap"><span class="ct mono" id="clockTime">00:00</span><span class="cs" id="clockPhase">1st Half</span></span>
+        </button>
+        <div class="clock-exp" id="clockExp" hidden><button type="button" class="clock-end" id="clockEnd">End 1st half</button></div>
+      </div>
       <div class="score">
         <div class="side us"><span class="l">For</span><span class="v mono" id="scoreUs">0</span></div>
         <span class="dash">–</span>
@@ -553,8 +560,6 @@
 <div class="scrim" id="menuScrim"><div class="menu-drop">
   <div id="menuItems"></div>
 </div></div>
-
-<div class="scrim" id="clockScrim"><div class="clock-drop" id="clockDrop"></div></div>
 
 <div class="scrim" id="planScrim"><div class="sheet">
   <h2>Game plan</h2><p class="sub" id="planSub"></p>
@@ -624,7 +629,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='21 · UI pass';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='22 · clock expand';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -807,17 +812,6 @@
     btn._armT=setTimeout(()=>{ if(btn.isConnected){ btn.classList.remove('arm'); btn.textContent=btn._txt; } },2500);
   }
   const halfConfirmLabel=()=>({h1:'Tap again to end 1st half',h2:'Tap again to end game',ft:''}[S.phase]);
-  // clock is now a control hub: tap opens a dropdown with pause/play + end-half (no separate half button)
-  function openClock(){
-    const playing=S.phase==='h1'||S.phase==='h2';
-    let items='';
-    if(playing) items+=`<button type="button" class="menu-item go" data-cact="toggle">${S.running?'⏸ Pause clock':'▶ Start clock'}</button>`;
-    const half={h1:'End 1st half',h2:'End game'}[S.phase];
-    if(half) items+=`<button type="button" class="menu-item" data-cact="half">${half}</button>`;
-    if(S.phase==='ft') items+=`<div class="menu-ver">Full time · ${S.scoreUs}–${S.scoreThem} — reset in Roster &amp; Settings</div>`;
-    $('#clockDrop').innerHTML=items;
-    $('#clockScrim').classList.add('open');
-  }
   function beep(){ try{const ac=new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.type='sine';o.frequency.value=660;g.gain.setValueAtTime(.001,ac.currentTime);g.gain.exponentialRampToValueAtTime(.4,ac.currentTime+.02);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.6);o.start();o.stop(ac.currentTime+.62);}catch(e){} }
 
   /* render */
@@ -986,6 +980,11 @@
     btn.classList.toggle('is-over', overNow());
     // 2nd half not yet started reads as "half-time" until you press play
     $('#clockPhase').textContent = (S.phase==='h2'&&!S.running&&S.elapsed===0) ? 'Half-time' : {h1:'1st Half',h2:'2nd Half',ft:'Full time'}[S.phase];
+    // paused mid-half → expand a slim End-half button under the clock (two-tap confirm)
+    const exp=$('#clockExp'), endBtn=$('#clockEnd'), showEnd=playing && !S.running && S.elapsed>0;
+    if(exp){ exp.hidden=!showEnd;
+      if(showEnd){ if(!endBtn.classList.contains('arm')) endBtn.textContent={h1:'End 1st half',h2:'End game'}[S.phase]; }
+      else if(endBtn.classList.contains('arm')){ clearTimeout(endBtn._armT); endBtn.classList.remove('arm'); } }
   }
 
   /* toast + undo */
@@ -1604,11 +1603,8 @@
     document.addEventListener('visibilitychange',()=>{ if(!document.hidden) tick(); });
     window.addEventListener('focus',tick);
     window.addEventListener('pageshow',tick);
-    $('#clockBtn').addEventListener('click',openClock);
-    $('#clockScrim').addEventListener('click',e=>{ if(e.target.id==='clockScrim')$('#clockScrim').classList.remove('open'); });
-    $('#clockDrop').addEventListener('click',e=>{ const b=e.target.closest('[data-cact]'); if(!b)return;
-      if(b.dataset.cact==='toggle'){ $('#clockScrim').classList.remove('open'); setRunning(!S.running); return; }
-      if(b.dataset.cact==='half'){ armConfirm(b,halfConfirmLabel(),()=>{ $('#clockScrim').classList.remove('open'); halfAction(); }); return; } });
+    $('#clockBtn').addEventListener('click',()=>setRunning(!S.running));   // single tap = play/pause
+    $('#clockEnd').addEventListener('click',e=>armConfirm(e.currentTarget,halfConfirmLabel(),halfAction));   // appears only while paused; two-tap confirm
     $('#teamTL').addEventListener('click',()=>{ $('#teamTL').classList.toggle('open'); });
     $('#scoredBtn').addEventListener('click',openScorer);
     $('#againstBtn').addEventListener('click',goalAgainst);
