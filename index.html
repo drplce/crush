@@ -633,7 +633,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='27 · no half-time prompts';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='28 · anti-thrash';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1329,9 +1329,9 @@
     const unit=strat.unit==='line'?'line':'individual';
     const gkRotate=(strat.gkPlan||'rotate')!=='fixed';
     const T=computeTargets(), hasGoal=!!T.zs.goal, slots=slotDefs();
-    const st={}, proj={}; S.players.forEach(p=>{st[p.id]={pos:null,sec:0,shift:0,goal:0}; proj[p.id]=[];});
+    const st={}, proj={}; S.players.forEach(p=>{st[p.id]={pos:null,sec:0,shift:0,goal:0,rest:0}; proj[p.id]=[];});
     if(live){
-      S.players.forEach(p=>{ const s=st[p.id]; s.pos=p.pos; s.sec=p.sec; s.shift=p.pos?p.shiftSec:0; s.goal=p.zone.goal||0; });
+      S.players.forEach(p=>{ const s=st[p.id]; s.pos=p.pos; s.sec=p.sec; s.shift=p.pos?p.shiftSec:0; s.goal=p.zone.goal||0; s.rest=p.pos?0:(p.restSec||0); });
     } else {
       const used=new Set(), starters=strat.starters||{};
       slots.forEach(s=>{ const pid=starters[s.k]; if(pid!=null&&st[pid]&&!used.has(pid)){ st[pid].pos=s.k; used.add(pid);} });
@@ -1340,7 +1340,10 @@
     const femOn=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
     const legal=(inP,outP)=>{ if(!S.minF)return true; const cur=femOn(); const nx=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return nx>=S.minF||nx>=cur; };
     const owed=id=>T.tgt[id]-st[id].sec;
-    const scoreIn=(p,z)=>{ const owedN=Math.max(-1.2,Math.min(1.2, owed(p.id)/(T.tgt[p.id]||600))); const fitN=(fitFor(p,z)-3)/2; return (1-bias)*owedN + bias*fitN + owedN*1e-3; };
+    const minRest=Math.max(45, C);   // a bench player should get roughly a shift's rest before coming back on
+    const scoreIn=(p,z)=>{ const owedN=Math.max(-1.2,Math.min(1.2, owed(p.id)/(T.tgt[p.id]||600))); const fitN=(fitFor(p,z)-3)/2;
+      const r=st[p.id].rest||0; const restPen = r<minRest ? -1.6*(1-r/minRest) : 0;   // anti-thrash: don't re-sub a player who just came off
+      return (1-bias)*owedN + bias*fitN + restPen + owedN*1e-3; };
     // who comes OFF: rebalance by benching the most over-target player (fairness), the weakest for the zone (win),
     // always with a fatigue nudge so long shifts still turn over. This is what makes a lopsided game self-correct.
     const scoreOut=p=>{ const z=zoneOf(st[p.id].pos); const overN=Math.max(-1.2,Math.min(1.2, -owed(p.id)/(T.tgt[p.id]||600))); const fitN=(fitFor(p,z)-3)/2; const shiftN=st[p.id].shift/Math.max(1,C); return (1-bias)*overN + bias*(-fitN) + 0.5*shiftN; };
@@ -1348,7 +1351,7 @@
     const teamStrength=()=>S.players.reduce((s,p)=>s+(st[p.id].pos?fitFor(p,zoneOf(st[p.id].pos)):0),0);
     const ov=(a,b,c,d)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
     let prev=live?gameElapsed():0;
-    const advance=to=>{ const step=to-prev; if(step>0){ const strg=teamStrength(); area+=step*strg; earlyArea+=ov(prev,to,0,W)*strg; lateArea+=ov(prev,to,totalGame-W,totalGame)*strg; S.players.forEach(p=>{const s=st[p.id]; const z=s.pos?zoneOf(s.pos):'bench'; const a=proj[p.id]; const last=a[a.length-1]; if(last&&last.z===z)last.s+=step; else a.push({z,s:step}); if(s.pos){s.sec+=step; s.shift+=step; if(zoneOf(s.pos)==='goal')s.goal+=step;}}); prev=to; } };
+    const advance=to=>{ const step=to-prev; if(step>0){ const strg=teamStrength(); area+=step*strg; earlyArea+=ov(prev,to,0,W)*strg; lateArea+=ov(prev,to,totalGame-W,totalGame)*strg; S.players.forEach(p=>{const s=st[p.id]; const z=s.pos?zoneOf(s.pos):'bench'; const a=proj[p.id]; const last=a[a.length-1]; if(last&&last.z===z)last.s+=step; else a.push({z,s:step}); if(s.pos){s.sec+=step; s.shift+=step; if(zoneOf(s.pos)==='goal')s.goal+=step;} else s.rest+=step;}); prev=to; } };
     const events=[];
     const rotateOnce=()=>{
       const bench=S.players.filter(p=>!st[p.id].pos); if(!bench.length)return false;
@@ -1362,7 +1365,7 @@
         pool.sort((a,b)=>scoreIn(b,z)-scoreIn(a,z)||a.id-b.id);
         const inP=pool[0], slot=st[out.id].pos;
         events.push({t:Math.round(prev), half:prev<halfLen?1:2, kind:'sub', inId:inP.id, outId:out.id, slot});
-        st[inP.id].pos=slot; st[inP.id].shift=0; st[out.id].pos=null; st[out.id].shift=0; return true;
+        st[inP.id].pos=slot; st[inP.id].shift=0; st[out.id].pos=null; st[out.id].shift=0; st[out.id].rest=0; return true;   // reset rest → they've just gone to the bench
       }
       return false;
     };
