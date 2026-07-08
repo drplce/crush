@@ -633,7 +633,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='26 · no double-book';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='27 · no half-time prompts';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1127,6 +1127,8 @@
   // depends on this one (a keeper swap using a player who hasn't come on yet) waits until it's actually next.
   function planRec(){
     if(!projCache) return null;
+    if(S.phase!=='h1'&&S.phase!=='h2') return null;          // no live sub prompts outside a half
+    if(!S.running && S.elapsed===0) return null;              // half not underway yet (kickoff / half-time) — plan bar previews, but no per-player prompts
     const now=gameElapsed();
     const up=projCache.events.filter(e=>e.t>=now-8);   // 8s grace so "now" lingers
     if(!up.length) return null;
