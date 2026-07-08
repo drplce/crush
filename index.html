@@ -633,7 +633,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='25 · named sub';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='26 · no double-book';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -854,16 +854,14 @@
   // plan-driven, notification only: the on-court player the plan takes off next / the keeper due to swap
   const courtStatus=(p,rec)=>{
     if(S.sel===p.id) return '<span class="pill sel">Selected</span>';
-    if(rec){
-      // name the incoming player so the coach sees exactly who to bring on (⇄ = swap in)
-      if(rec.gk&&rec.gk.outId===p.id) return `<span class="pill off${rec.gk.now?' due':''}">⇄ ${nmOf(rec.gk.inId)} · ${rec.gk.now?'now':short(rec.gk.dueIn)}</span>`;
-      if(rec.off&&rec.off.outId===p.id) return `<span class="pill off${rec.off.now?' due':''}">⇄ ${nmOf(rec.off.inId)} · ${rec.off.now?'now':short(rec.off.dueIn)}</span>`;
-    }
+    // name the incoming player so the coach sees exactly who to bring on (⇄ = swap in)
+    const ev=rec&&rec.evs.find(e=>e.outId===p.id);
+    if(ev) return `<span class="pill off${rec.now?' due':''}">⇄ ${nmOf(ev.inId)} · ${rec.now?'now':short(rec.dueIn)}</span>`;
     return '';
   };
   const benchStatus=(p,rec)=>S.sel===p.id?'<span class="pill sel">Selected</span>':'';   // bench is selection-only — no tap-to-sub
   // gentle row pulse when the plan says this player is due off / keeper due to swap right now
-  const dueRow=(p,rec)=>!!rec&&S.sel!==p.id&&((rec.off&&rec.off.outId===p.id&&rec.off.now)||(rec.gk&&rec.gk.outId===p.id&&rec.gk.now));
+  const dueRow=(p,rec)=>!!rec&&S.sel!==p.id&&rec.now&&rec.evs.some(e=>e.outId===p.id);
   const stateCls=p=>S.sel===p.id?' is-sel':'';
   // while a player is selected, dim partners the ♀ rule would block (still tappable — override)
   function inelClass(p){
@@ -1124,17 +1122,23 @@
      no one-tap execution: the coach makes the swap manually. */
   let renderedPairKey='';
   function clearLock(){}   // no-op — rotation locking belonged to the retired tips engine
+  // Surface only the IMMEDIATE change(s) — the earliest event plus any at the same instant (e.g. a paired
+  // line change) — deduped by player so nobody is shown coming on for two subs at once. A later change that
+  // depends on this one (a keeper swap using a player who hasn't come on yet) waits until it's actually next.
   function planRec(){
     if(!projCache) return null;
     const now=gameElapsed();
-    // earliest change of each kind that is upcoming (or just went due — 8s grace so "now" lingers)
-    const pick=kind=>{ const c=projCache.events.filter(e=>e.kind===kind&&e.t>=now-8); if(!c.length)return null; const e=c[0]; return {outId:e.outId,inId:e.inId,dueIn:Math.max(0,Math.round(e.t-now)),now:e.t<=now}; };
-    const off=pick('sub'), gk=pick('gk');
-    return (off||gk)?{off,gk}:null;
+    const up=projCache.events.filter(e=>e.t>=now-8);   // 8s grace so "now" lingers
+    if(!up.length) return null;
+    const t0=up[0].t, evs=[], seen=new Set();
+    for(const e of up){ if(e.t-t0>1.5) break;          // only events happening together with the next one
+      if(seen.has(e.inId)||seen.has(e.outId)) continue; // no player double-booked across simultaneous changes
+      seen.add(e.inId); seen.add(e.outId); evs.push(e); }
+    return { evs, dueIn:Math.max(0,Math.round(t0-now)), now:t0<=now };
   }
   function getRec(){
     const r=planRec();
-    getRec._k = r ? 'o'+(r.off?r.off.outId+'>'+r.off.inId:'-')+'g'+(r.gk?r.gk.outId+'>'+r.gk.inId:'-') : '';
+    getRec._k = r ? r.evs.map(e=>e.kind+e.outId+'>'+e.inId).join('|') : '';
     return r;
   }
   getRec._k='';
