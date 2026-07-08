@@ -633,7 +633,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='24 · live replan';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='25 · named sub';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -855,8 +855,9 @@
   const courtStatus=(p,rec)=>{
     if(S.sel===p.id) return '<span class="pill sel">Selected</span>';
     if(rec){
-      if(rec.gk&&rec.gk.outId===p.id) return `<span class="pill off${rec.gk.now?' due':''}">Swap GK${rec.gk.now?'':' · '+short(rec.gk.dueIn)}</span>`;
-      if(rec.off&&rec.off.outId===p.id) return `<span class="pill off${rec.off.now?' due':''}">Off · ${rec.off.now?'now':short(rec.off.dueIn)}</span>`;
+      // name the incoming player so the coach sees exactly who to bring on (⇄ = swap in)
+      if(rec.gk&&rec.gk.outId===p.id) return `<span class="pill off${rec.gk.now?' due':''}">⇄ ${nmOf(rec.gk.inId)} · ${rec.gk.now?'now':short(rec.gk.dueIn)}</span>`;
+      if(rec.off&&rec.off.outId===p.id) return `<span class="pill off${rec.off.now?' due':''}">⇄ ${nmOf(rec.off.inId)} · ${rec.off.now?'now':short(rec.off.dueIn)}</span>`;
     }
     return '';
   };
