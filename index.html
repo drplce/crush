@@ -175,10 +175,10 @@
   .prow.is-sel{box-shadow:inset 0 0 0 2px var(--acc);}
   /* per-player detail — its own chevron (separate from the select tap) + a collapsible panel */
   .p-entry{display:flex; flex-direction:column;}
-  .p-line{display:flex; align-items:stretch; gap:8px;}
-  .p-line .prow{flex:1; min-width:0;}
-  .det-tog{flex:0 0 34px; width:34px; border:1px solid var(--line); border-radius:14px; background:var(--panel); color:var(--muted-2); font-size:12px; display:flex; align-items:center; justify-content:center; transition:transform .15s ease;}
-  .p-entry.open .det-tog{transform:rotate(180deg); color:var(--acc); border-color:var(--acc);}
+  /* expand affordance lives INSIDE the card — a slim chevron strip on the right edge (tap it = detail; tap the card = select) */
+  .prow .det-tog{flex:0 0 22px; align-self:stretch; margin:-11px -12px -15px 4px; display:flex; align-items:center; justify-content:center; color:var(--muted-2); font-size:11px; border-left:1px solid var(--line); border-radius:0 13px 13px 0; transition:color .15s ease;}
+  .p-entry.open .prow .det-tog{color:var(--acc);}
+  .prow.empty .det-tog{display:none;}
   .det-panel{display:none; margin-top:6px; padding:9px 13px; background:var(--board); border:1px solid var(--line); border-radius:12px;}
   .p-entry.open .det-panel{display:block;}
   .det-grid{display:grid; grid-template-columns:auto 1fr; gap:4px 12px; align-items:baseline;}
@@ -634,7 +634,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='37 · keeper + gk fix';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='38 · in-card detail';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -906,7 +906,8 @@
       <span class="dl">Zones</span><span class="dv">${zones}</span>
       ${hasPM?`<span class="dl">Impact +/−</span><span class="dv mono ${pm>0?'over':(pm<0?'under':'')}">${sgn(pm)}</span>`:''}</div>`;
   }
-  const entry=(id,rowHTML)=>`<div class="p-entry${detailOpen.has(id)?' open':''}"><div class="p-line">${rowHTML}<button type="button" class="det-tog" data-det="${id}" aria-label="Player detail">▾</button></div><div class="det-panel">${detailHTML(P(id))}</div></div>`;
+  const entry=(id,rowHTML)=>`<div class="p-entry${detailOpen.has(id)?' open':''}">${rowHTML}<div class="det-panel">${detailHTML(P(id))}</div></div>`;
+  const detTog=id=>`<span class="det-tog" data-det="${id}" aria-label="Player detail">${detailOpen.has(id)?'▴':'▾'}</span>`;
   function toggleDetail(id){ if(detailOpen.has(id))detailOpen.delete(id); else detailOpen.add(id); render(); }
   /* phone list rows — same DNA and the same .p-* live-update hooks as the cards */
   function courtRowHTML(slot){
@@ -918,7 +919,7 @@
       <span class="p-name-col"><span class="p-nm">${esc(p.name)}${femHTML(p)}</span><span class="r-sub">Total <b class="p-tv mono">${fmt(p.sec)}</b></span></span>
       <span class="p-status">${courtStatus(p,curRec)}</span>
       <span class="r-clock"><span class="p-cl">${gk?'In goal':'Shift'}</span><span class="p-cv mono${overTicker(p)?' over':''}">${fmt(gk?p.posSec:p.shiftSec)}</span></span>
-      ${tlBarHTML(p)}
+      ${tlBarHTML(p)}${detTog(p.id)}
     </button>`);
   }
   function benchRowHTML(p){
@@ -928,7 +929,7 @@
       <span class="p-name-col"><span class="p-nm">${esc(p.name)}${femHTML(p)}</span><span class="r-sub">Total <b class="p-tv mono">${fmt(p.sec)}</b></span></span>
       <span class="p-status">${benchStatus(p,curRec)}</span>
       <span class="r-clock"><span class="p-cl">Rest</span><span class="p-cv mono">${fmt(p.restSec)}</span></span>
-      ${tlBarHTML(p)}
+      ${tlBarHTML(p)}${detTog(p.id)}
     </button>`);
   }
   function updateScores(){ $('#scoreUs').textContent=S.scoreUs; $('#scoreThem').textContent=S.scoreThem; }
