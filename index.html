@@ -28,7 +28,7 @@
     --num:"Space Grotesk","JetBrains Mono",ui-monospace,monospace;   /* time/clock digits */
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
   }
-  html{color-scheme:dark;}
+  html{color-scheme:dark; -webkit-text-size-adjust:100%; text-size-adjust:100%;}   /* stop iOS inflating text on rotate */
   html,body{height:100%;margin:0;background:var(--board);}
   #cc{
     position:fixed; inset:0; display:flex; flex-direction:column;
@@ -632,7 +632,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='42 · sound cues';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='43 · fairer subs + font fix';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1350,7 +1350,9 @@
     // OFF: ahead of pace (fairness), weakest-for-zone (win), plus a steepening nudge for anyone running too long.
     const offScore=p=>{ const z=zoneOf(st[p.id].pos), r=runN(p.id); return (1-w)*(-paceN(p.id)) + w*(-fitN(p,z)) + 1.0*(r*r); };
     // ON: behind pace (fairness), best-for-zone (win), plus a role-balance pull toward players light on THIS zone.
-    const inScore=(b,z)=>{ const roleBal=(z==='def'||z==='att')?clampV((meanZ(z)-zAcc(b.id,z))/(C*2),-1.5,1.5):0; return (1-w)*paceN(b.id)+w*fitN(b,z)+0.6*roleBal; };
+    // role balance is a gentle TIEBREAK only (weight 0.25, clamped ±1) so it can never override a real minutes gap:
+    // minutes-fairness (paceN) stays the dominant pull — it just decides who fills a slot among similarly-owed players.
+    const inScore=(b,z)=>{ const roleBal=(z==='def'||z==='att')?clampV((meanZ(z)-zAcc(b.id,z))/(C*2),-1,1):0; return (1-w)*paceN(b.id)+w*fitN(b,z)+0.25*roleBal; };
     let area=0, earlyArea=0, lateArea=0; const W=Math.min(180, halfLen);
     const teamStrength=()=>S.players.reduce((s,p)=>s+(st[p.id].pos?fitFor(p,zoneOf(st[p.id].pos)):0),0);
     const ov=(a,b,c,d)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
