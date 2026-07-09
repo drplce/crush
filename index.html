@@ -633,7 +633,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='29 · rebuilt subs';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='30 · engine v2';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -642,30 +642,25 @@
   const CARD_ASPECT=150/242; // locked 4b card ratio — mirrors the CSS aspect-ratio on .pcard
 
   // Each formation is a set of lines (columns), own goal → attacking end, GK always first.
+  // Labels are ATTACK-FIRST (att-def): 3-1 = three attackers + one defender (chase); 1-3 = one attacker + three defenders (protect).
   const FORMATIONS={
     '2-2':{label:'2-2', cols:[
       {zone:'goal',slots:[{k:'GK',label:'GK'}]},
       {zone:'def', slots:[{k:'D1',label:'D1'},{k:'D2',label:'D2'}]},
       {zone:'att', slots:[{k:'F1',label:'F1'},{k:'F2',label:'F2'}]},
     ]},
-    '1-3':{label:'1-3', cols:[
+    '3-1':{label:'3-1', cols:[
       {zone:'goal',slots:[{k:'GK',label:'GK'}]},
       {zone:'def', slots:[{k:'D1',label:'D'}]},
       {zone:'att', slots:[{k:'F1',label:'F1'},{k:'F2',label:'F2'},{k:'F3',label:'F3'}]},
     ]},
-    '3-1':{label:'3-1', cols:[
+    '1-3':{label:'1-3', cols:[
       {zone:'goal',slots:[{k:'GK',label:'GK'}]},
       {zone:'def', slots:[{k:'D1',label:'D1'},{k:'D2',label:'D2'},{k:'D3',label:'D3'}]},
       {zone:'att', slots:[{k:'F1',label:'F'}]},
     ]},
-    '1-2-1':{label:'1-2-1', cols:[
-      {zone:'goal',slots:[{k:'GK',label:'GK'}]},
-      {zone:'def', slots:[{k:'D1',label:'D'}]},
-      {zone:'mid', slots:[{k:'M1',label:'M1'},{k:'M2',label:'M2'}]},
-      {zone:'att', slots:[{k:'F1',label:'F'}]},
-    ]},
   };
-  const FORMATION_ORDER=['2-2','1-3','3-1','1-2-1'];
+  const FORMATION_ORDER=['2-2','3-1','1-3'];
   const fmKey=()=>FORMATIONS[S.formation]?S.formation:'2-2';
   const fm=()=>FORMATIONS[fmKey()];
   const _slotDefsCache={};
@@ -1329,10 +1324,13 @@
     const unit=strat.unit==='line'?'line':'individual';
     const gkRotate=(strat.gkPlan||'rotate')!=='fixed';
     const T=computeTargets(), hasGoal=!!T.zs.goal, slots=slotDefs();
-    const st={}, proj={}; S.players.forEach(p=>{st[p.id]={pos:null,sec:0,shift:0,goal:0,rest:0,court:0}; proj[p.id]=[];});
+    // per-player projection state: sec=total minutes, goal/zdef/zatt=accrued time per zone (for role-share balance),
+    // run=continuous OUTFIELD running load (GK-as-rest: a spell in goal discharges it; the bench clears it).
+    const st={}, proj={}; S.players.forEach(p=>{st[p.id]={pos:null,sec:0,shift:0,goal:0,zdef:0,zatt:0,rest:0,run:0}; proj[p.id]=[];});
     if(live){
-      // shiftSec already survives position/keeper swaps (resets only on a bench→court sub or at half), so it IS continuous on-court time
-      S.players.forEach(p=>{ const s=st[p.id]; s.pos=p.pos; s.sec=p.sec; s.shift=p.pos?p.shiftSec:0; s.court=p.pos?p.shiftSec:0; s.goal=p.zone.goal||0; s.rest=p.pos?0:(p.restSec||0); });
+      S.players.forEach(p=>{ const s=st[p.id]; s.pos=p.pos; s.sec=p.sec; s.shift=p.pos?p.shiftSec:0;
+        s.goal=p.zone.goal||0; s.zdef=p.zone.def||0; s.zatt=(p.zone.att||0)+(p.zone.mid||0); s.rest=p.pos?0:(p.restSec||0);
+        s.run=(p.pos&&!isGK(p))?p.shiftSec:0; });   // running load ≈ current outfield stint; goalkeeping doesn't count as running
     } else {
       const used=new Set(), starters=strat.starters||{};
       slots.forEach(s=>{ const pid=starters[s.k]; if(pid!=null&&st[pid]&&!used.has(pid)){ st[pid].pos=s.k; used.add(pid);} });
@@ -1340,25 +1338,29 @@
     }
     const femOn=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
     const legal=(inP,outP)=>{ if(!S.minF)return true; const cur=femOn(); const nx=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return nx>=S.minF||nx>=cur; };
-    // ---- blend3 substitution engine (evidence-selected; see /scratchpad subrun.mjs) ----
-    // Fairness is PACE-RELATIVE: at time `prev` each player's expected court time is T.tgt[id]*(prev/total).
-    // paceDef>0 means "behind pace / owed time". Ratings pull is TEMPERED so fairness always keeps ≥40% weight,
-    // which is what stops bias>0 from becoming a fairness catastrophe. Welfare via court-cap + rest filter.
-    const paceDef=id=>((T.tgt[id]||0)*(prev/totalGame))-st[id].sec;
-    const w=Math.min(0.6, bias*0.6);                 // ratings weight capped at 0.6
-    const courtCap=Math.max(120, C*2.2);             // continuous on-court cap → forced turnover
-    const minRest=Math.max(45, C);                   // ~a shift's rest before a player comes back on
-    const fitN=(p,z)=>(fitFor(p,z)-3)/2;
+    // ---- substitution engine v2 (evidence-selected across 432 configs; see /scratchpad subrun2.mjs) ----
+    // Fairness is PACE-RELATIVE: expected minutes at time `prev` = T.tgt[id]*(prev/total); paceN>0 = behind pace/owed.
+    // Ratings pull is TEMPERED (caps at 0.6 → fairness always keeps ≥40%). Welfare is a soft, steepening run-nudge —
+    // NO hard court-cap. Role balance shares attack/defence out to whoever's had least of that role (goal is shared
+    // separately by the keeper rotation). GK counts as rest, so goalkeeping bleeds the running load down.
     const clampV=(x,a,b)=>Math.max(a,Math.min(b,x));
-    // OFF: prefer players ahead of pace (fairness), weakest-for-zone (win), plus a court-time nudge so shifts turn over.
-    const offScore=p=>{ const z=zoneOf(st[p.id].pos); return (1-w)*(-clampV(paceDef(p.id)/C,-2,2)) + w*(-fitN(p,z)) + 0.15*(st[p.id].court/courtCap); };
-    // ON: prefer players behind pace (fairness) and best-for-zone (win).
-    const inScore=(b,z)=>(1-w)*clampV(paceDef(b.id)/C,-2,2)+w*fitN(b,z);
+    const minRest=Math.max(45, C);                   // ~a shift's rest before a player comes back on
+    const runNorm=C*3;                               // running load ≈ 1.0 after three shifts of unbroken running
+    const w=Math.min(0.6, bias*0.6);                 // ratings weight capped at 0.6
+    const paceN=id=>clampV(((T.tgt[id]||0)*(prev/totalGame)-st[id].sec)/C, -2, 2);
+    const fitN=(p,z)=>(fitFor(p,z)-3)/2;
+    const runN=id=>st[id].run/runNorm;
+    const zAcc=(id,z)=> z==='def'?st[id].zdef:(z==='att'?st[id].zatt:0);
+    const meanZ=z=>{ let s=0; S.players.forEach(p=>s+=zAcc(p.id,z)); return s/(S.players.length||1); };
+    // OFF: ahead of pace (fairness), weakest-for-zone (win), plus a steepening nudge for anyone running too long.
+    const offScore=p=>{ const z=zoneOf(st[p.id].pos), r=runN(p.id); return (1-w)*(-paceN(p.id)) + w*(-fitN(p,z)) + 1.0*(r*r); };
+    // ON: behind pace (fairness), best-for-zone (win), plus a role-balance pull toward players light on THIS zone.
+    const inScore=(b,z)=>{ const roleBal=(z==='def'||z==='att')?clampV((meanZ(z)-zAcc(b.id,z))/(C*2),-1.5,1.5):0; return (1-w)*paceN(b.id)+w*fitN(b,z)+0.6*roleBal; };
     let area=0, earlyArea=0, lateArea=0; const W=Math.min(180, halfLen);
     const teamStrength=()=>S.players.reduce((s,p)=>s+(st[p.id].pos?fitFor(p,zoneOf(st[p.id].pos)):0),0);
     const ov=(a,b,c,d)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
     let prev=live?gameElapsed():0;
-    const advance=to=>{ const step=to-prev; if(step>0){ const strg=teamStrength(); area+=step*strg; earlyArea+=ov(prev,to,0,W)*strg; lateArea+=ov(prev,to,totalGame-W,totalGame)*strg; S.players.forEach(p=>{const s=st[p.id]; const z=s.pos?zoneOf(s.pos):'bench'; const a=proj[p.id]; const last=a[a.length-1]; if(last&&last.z===z)last.s+=step; else a.push({z,s:step}); if(s.pos){s.sec+=step; s.shift+=step; s.court+=step; if(zoneOf(s.pos)==='goal')s.goal+=step;} else {s.rest+=step; s.court=0;}}); prev=to; } };
+    const advance=to=>{ const step=to-prev; if(step>0){ const strg=teamStrength(); area+=step*strg; earlyArea+=ov(prev,to,0,W)*strg; lateArea+=ov(prev,to,totalGame-W,totalGame)*strg; S.players.forEach(p=>{const s=st[p.id]; const z=s.pos?zoneOf(s.pos):'bench'; const a=proj[p.id]; const last=a[a.length-1]; if(last&&last.z===z)last.s+=step; else a.push({z,s:step}); if(s.pos){s.sec+=step; s.shift+=step; const zz=zoneOf(s.pos); if(zz==='goal'){s.goal+=step; s.run=Math.max(0,s.run-step*0.5);} else {s.run+=step; if(zz==='def')s.zdef+=step; else s.zatt+=step;}} else {s.rest+=step; s.run=0;}}); prev=to; } };
     const events=[];
     const rotateOnce=()=>{
       const bench=S.players.filter(p=>!st[p.id].pos); if(!bench.length)return false;
@@ -1366,10 +1368,7 @@
       let outs=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal');
       if(mustFixFem) outs=outs.filter(p=>p.sex!=='f');
       if(!outs.length)return false;
-      // if anyone is past the continuous-court cap, force the longest-on off first; otherwise rank by blended off-score
-      const over=outs.filter(p=>st[p.id].court>=courtCap);
-      const offOrder=over.length? over.slice().sort((a,b)=>st[b.id].court-st[a.id].court||a.id-b.id)
-                                : outs.slice().sort((a,b)=>offScore(b)-offScore(a)||st[b.id].court-st[a.id].court||a.id-b.id);
+      const offOrder=outs.slice().sort((a,b)=>offScore(b)-offScore(a)||st[b.id].run-st[a.id].run||a.id-b.id);
       for(const out of offOrder){ const z=zoneOf(st[out.id].pos);
         let pool=(mustFixFem?bench.filter(b=>b.sex==='f'):bench).filter(b=>legal(b,out));
         if(!pool.length)continue;
@@ -1377,7 +1376,7 @@
         pool.sort((a,b)=>inScore(b,z)-inScore(a,z)||st[b.id].rest-st[a.id].rest||a.id-b.id);
         const inP=pool[0], slot=st[out.id].pos;
         events.push({t:Math.round(prev), half:prev<halfLen?1:2, kind:'sub', inId:inP.id, outId:out.id, slot});
-        st[inP.id].pos=slot; st[inP.id].shift=0; st[inP.id].court=0; st[out.id].pos=null; st[out.id].shift=0; st[out.id].court=0; st[out.id].rest=0; return true;
+        st[inP.id].pos=slot; st[inP.id].shift=0; st[inP.id].run=0; st[out.id].pos=null; st[out.id].shift=0; st[out.id].run=0; st[out.id].rest=0; return true;
       }
       return false;
     };
@@ -1392,15 +1391,12 @@
       const htAt=htDone?Infinity:halfLen, at=Math.min(subB,gkB,htAt);
       if(at>=totalGame-10) break;
       advance(at);
-      if(at===htAt){ S.players.forEach(p=>{st[p.id].shift=0; st[p.id].court=0;}); htDone=true; subB=halfLen+C; gkB=hasGoal?halfLen+GKC:Infinity; continue; }
+      if(at===htAt){ S.players.forEach(p=>{st[p.id].shift=0; st[p.id].run=0;}); htDone=true; subB=halfLen+C; gkB=hasGoal?halfLen+GKC:Infinity; continue; }
       if(hasGoal&&gkRotate&&at===gkB){
+        // share the goal role: the outfielder who's had least goal-time takes over in goal (their running load then discharges)
         const gk=S.players.find(p=>st[p.id].pos&&zoneOf(st[p.id].pos)==='goal');
-        const gslot=gk&&st[gk.id].pos;
-        // if the keeper has been anchored on court past the cap, give them a real rest: a rested bench player takes the goal
-        const restIn=(gk&&st[gk.id].court>=courtCap)? S.players.filter(p=>!st[p.id].pos&&legal(p,gk)&&st[p.id].rest>=minRest).sort((a,b)=>fitFor(b,'goal')-fitFor(a,'goal')||st[b.id].rest-st[a.id].rest||a.id-b.id)[0] : null;
-        if(gk&&restIn){ st[restIn.id].pos=gslot; st[restIn.id].shift=0; st[restIn.id].court=0; st[gk.id].pos=null; st[gk.id].shift=0; st[gk.id].court=0; st[gk.id].rest=0; events.push({t:Math.round(prev),half:prev<halfLen?1:2,kind:'gk',inId:restIn.id,outId:gk.id}); }
-        else { const cand=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal'&&p.id!==(gk&&gk.id)).sort((a,b)=>st[a.id].goal-st[b.id].goal||a.id-b.id)[0];
-          if(gk&&cand){ const g=st[gk.id].pos,c=st[cand.id].pos; st[gk.id].pos=c; st[cand.id].pos=g; st[gk.id].shift=0; st[cand.id].shift=0; events.push({t:Math.round(prev),half:prev<halfLen?1:2,kind:'gk',inId:cand.id,outId:gk.id}); } }
+        const cand=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal'&&p.id!==(gk&&gk.id)).sort((a,b)=>st[a.id].goal-st[b.id].goal||a.id-b.id)[0];
+        if(gk&&cand){ const g=st[gk.id].pos,c=st[cand.id].pos; st[gk.id].pos=c; st[cand.id].pos=g; st[gk.id].shift=0; st[cand.id].shift=0; events.push({t:Math.round(prev),half:prev<halfLen?1:2,kind:'gk',inId:cand.id,outId:gk.id}); }
         gkB=at+GKC; continue;
       }
       rotateOnce(); if(unit==='line') rotateOnce();   // "in pairs" = two changes at the same stoppage
