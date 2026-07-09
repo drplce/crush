@@ -205,17 +205,19 @@
 
   /* phone (narrow or short) — no rink, roster list. Mirrors LIST_MQ in the JS; keep in sync */
   @media (max-width:700px), (max-height:520px){
-    /* header collapses to one slim row: burger · clock (centred) · score; the tools move to the menu sheet */
-    header.bar{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; padding:7px 12px;}
-    .burger{display:flex; justify-self:start;}
-    .brand,.hud-r{display:none;}
+    /* header: clock (centred) + score on the top row; the tool buttons as a full-width row beneath */
+    header.bar{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:7px 10px; padding:7px 12px;}
+    .brand{display:none;}
     .hud-c{display:contents;}
-    .clock-wrap{grid-column:2; justify-self:center;}
+    .clock-wrap{grid-column:2; grid-row:1; justify-self:center;}
+    .hud-r{display:flex; grid-column:1 / -1; grid-row:2; justify-content:space-between; gap:6px;}
+    .hud-r .ghostbtn{flex:1; display:flex; align-items:center; justify-content:center; height:34px; padding:0; background:var(--panel-hi); border:1px solid var(--line); color:var(--text);}
+    .hud-r .ghostbtn.gear{flex:0 0 46px; font-size:17px;}
     .clockbtn{height:54px; padding:0 17px; gap:10px;}
     .clockbtn .ct{font-size:26px;}
     .clockbtn .cico{width:13px; height:15px;}
     .clockbtn:not(.is-run) .cico::before{border-left-width:11px; border-top-width:7px; border-bottom-width:7px;}
-    .score{grid-column:3; justify-self:end; gap:8px;}
+    .score{grid-column:3; grid-row:1; justify-self:end; gap:8px;}
     .score .side{min-width:30px; gap:2px;}
     .score .side .l{font-size:8px;}
     .score .side .v{font-size:17px;}
@@ -497,7 +499,6 @@
 <body>
 <div id="cc">
   <header class="bar">
-    <button type="button" class="burger" id="menuBtn" aria-label="Menu"><i></i><i></i><i></i></button>
     <div class="brand">
       <div class="wordmark">CRUSH<b>·</b>CONTROL</div>
       <div class="tag">Bench &amp; Goal Control</div>
@@ -561,35 +562,11 @@
   </footer>
 </div>
 
-<div class="scrim" id="menuScrim"><div class="menu-drop">
-  <div id="menuItems"></div>
-</div></div>
-
-<div class="scrim" id="planScrim"><div class="sheet">
-  <h2>Game plan</h2><p class="sub" id="planSub"></p>
-  <div class="eyebrow plan-label">Planned rotations</div>
-  <div id="planGame"></div>
-  <div id="planRecs"></div>
-  <div class="eyebrow plan-label">Targets · tap a position: normal → prefer ★ → avoid ✕</div>
-  <div id="planTable"></div>
-  <div class="sheet-foot"><button type="button" id="planCopy">Copy game</button><button type="button" id="planDone">Done</button></div>
-</div></div>
-
-<div class="scrim" id="seasonScrim"><div class="sheet">
-  <h2>Season</h2><p class="sub" id="seasonSub"></p>
-  <div id="seasonTable"></div>
-  <div class="ed-btns" style="margin-top:12px"><button type="button" class="ministr" id="seasonAdd">+ Add current game</button><button type="button" class="ministr" id="seasonImportToggle">Import JSON</button></div>
-  <div id="seasonImport" hidden><textarea id="seasonJSON" placeholder="Paste a “Copy game” JSON here…"></textarea><div class="ed-btns"><button type="button" class="ministr on" id="seasonImportDo">Import</button></div></div>
-  <div id="seasonGames"></div>
-  <div class="sheet-foot"><button type="button" class="danger" id="seasonClear">Clear season</button><button type="button" id="seasonDone">Done</button></div>
-</div></div>
 
 <div class="scrim" id="stratScrim"><div class="sheet">
-  <h2>Strategy</h2><p class="sub" id="stratSub"></p>
-  <div id="stratList"></div>
-  <div class="addrow"><button type="button" id="stratNew">+ New plan</button></div>
+  <h2>Plan</h2><p class="sub" id="stratSub"></p>
   <div id="stratEdit"></div>
-  <div class="sheet-foot"><button type="button" id="stratCopy">Copy plan</button><button type="button" id="stratDone">Done</button></div>
+  <div class="sheet-foot"><button type="button" id="stratGame">Copy game</button><button type="button" id="stratCopy">Copy plan</button><button type="button" id="stratDone">Done</button></div>
 </div></div>
 
 <div class="scrim" id="scorerScrim"><div class="sheet">
@@ -625,6 +602,7 @@
     <div class="field"><label for="gkT">Keeper alert (sec)</label><input class="mono" id="gkT" type="number" min="30" max="1200" inputmode="numeric"></div>
     <div class="field"><label for="minF">Min ♀ on court</label><input class="mono" id="minF" type="number" min="0" max="4" inputmode="numeric"></div>
   </div>
+  <div class="menu-ver">Build <span id="buildVer"></span></div>
   <div class="sheet-foot"><button type="button" class="danger" id="resetGame">Reset game</button><button type="button" id="rosterDone">Done</button></div>
 </div></div>
 
@@ -633,7 +611,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='30 · engine v2';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='31 · strip-down';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -801,7 +779,7 @@
       S.h1Secs=S.elapsed; S.players.forEach(p=>{ p.shiftSec=0; p.posSec=0; });
       setRunning(false); S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; S.lastSub=S.halfLen*60; beep();
       toast('Half-time — '+fmt(S.h1Secs)+' played. Tap ▶ to start the 2nd half',true); }
-    else if(S.phase==='h2'){ setRunning(false); S.phase='ft'; beep(); toast('Full-time — '+S.scoreUs+'–'+S.scoreThem,true); }
+    else if(S.phase==='h2'){ setRunning(false); S.phase='ft'; beep(); toast('Full-time — '+S.scoreUs+'–'+S.scoreThem,true); captureSeasonGame(); }
     render(); save();
   }
   // two-tap confirm on a button: first tap arms (relabels for 2.5s), second tap runs fn
@@ -937,7 +915,6 @@
     updateScores();
     renderClock(); updateUndo();
     sizeCourtCards(); renderTeamTL();
-    if($('#planScrim').classList.contains('open')) renderPlan();   // targets sheet re-solves whenever the game state changes
   }
   // per-second update: only touch text + classes, never rebuild (keeps taps reliable). A pair change forces one re-render.
   function liveUpdate(){
@@ -1141,88 +1118,8 @@
   getRec._k='';
   const ZNAME={goal:'GK',def:'D',mid:'M',att:'F'};
   const short=s=>Math.floor(s/60)+':'+String(Math.floor(s)%60).padStart(2,'0');
-  function openPlan(){ renderPlan(); $('#planScrim').classList.add('open'); }
-  function renderPlan(){
-    if(!S.players.length){ $('#planSub').textContent='Add players in Roster & Settings first.'; $('#planGame').innerHTML=''; $('#planRecs').innerHTML='<div class="plan-empty">No players yet.</div>'; $('#planTable').innerHTML=''; return; }
-    const T=computeTargets();
-    $('#planSub').textContent=`2 × ${S.halfLen}:00 halves · ${fm().label}${S.minF>0?` · min ${S.minF} ♀ on court`:''} · shift ≈ ${fmt(cadence())}`;
-    renderGamePlan();
-    $('#planTable').innerHTML=S.players.map(p=>{
-      const diff=paceDiff(p,T);
-      const dCls=Math.abs(diff)<30?'even':(diff>0?'ahead':'behind');
-      const dTxt=Math.abs(diff)<30?'on pace':(diff>0?'+':'−')+fmt(Math.abs(diff));
-      const zline=T.zones.map(z=>`${ZNAME[z]} ${short(T.tgtZ[p.id][z])}`).join(' · ');
-      const prefs=T.zones.map(z=>{const w=prefW(p,z); const cls=w>1?'on':(w<1?'off':''); const mark=w>1?'★':(w<1?'✕':''); return `<button type="button" class="pref ${ROLECLASS[z]} ${cls}" data-pid="${p.id}" data-z="${z}">${ZNAME[z]}${mark}</button>`;}).join('');
-      return `<div class="trow">
-        <span class="tn">${esc(p.name)}${femHTML(p)}</span>
-        <span class="tnums"><span class="ttgt"><small>Target</small>${fmt(T.tgt[p.id])}</span><span class="tdiff ${dCls}">${dTxt}</span></span>
-        <span class="tzones">${zline}</span>
-        <span class="tprefs">${prefs}</span>
-      </div>`;
-    }).join('');
-  }
-
-  /* whole-game rotation plan — projects the full sequence of subs to the final whistle
-     using the same rule the live pill uses (longest shift off, most-owed on; ♀-min & prefs aware) */
-  function gamePlan(){
-    const halfLen=S.halfLen*60, totalGame=halfLen*2, C=cadence(), GKC=Math.max(60,S.gkT||300);
-    const T=computeTargets();
-    const st={}; S.players.forEach(p=>st[p.id]={pos:p.pos, sec:p.sec, shift:p.pos?p.shiftSec:0, goal:p.zone.goal});
-    const now=gameElapsed();
-    const femOn=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
-    const legal=(inP,outP)=>{ if(!S.minF) return true; const cur=femOn(); const next=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return next>=S.minF||next>=cur; };
-    const owed=id=>T.tgt[id]-st[id].sec;
-    const startLineup=slotDefs().map(s=>{const p=S.players.find(pp=>st[pp.id].pos===s.k); return {label:s.label, name:p?p.name:null};});
-    const hasGoal=!!T.zs.goal;
-    const gk0=S.players.find(p=>p.pos&&isGK(p));
-    const advance=to=>{ const step=to-prev; if(step>0){ S.players.forEach(p=>{ const s=st[p.id]; if(s.pos){ s.sec+=step; s.shift+=step; if(zoneOf(s.pos)==='goal') s.goal+=step; } }); prev=to; } };
-    const events=[]; let prev=now, guard=0;
-    let subB=(S.lastSub||0)+C;                                       // next outfield rotation (paced from last sub)
-    let gkB=hasGoal ? now+Math.max(0, GKC-(gk0?gk0.posSec:0)) : Infinity;  // next keeper swap (from current goal stint)
-    while(guard++<120){
-      const subAt=Math.max(subB,now), gkAt=Math.max(gkB,now);
-      const doGk = hasGoal && gkAt<subAt;
-      const at=doGk?gkAt:subAt;
-      if(at>=totalGame-15) break;
-      advance(at);
-      if(doGk){
-        const gk=S.players.find(p=>st[p.id].pos && zoneOf(st[p.id].pos)==='goal');
-        const cand=S.players.filter(p=>st[p.id].pos && p.id!==(gk&&gk.id)).sort((a,b)=>st[a.id].goal-st[b.id].goal||a.id-b.id)[0];
-        if(gk&&cand){ const g=st[gk.id].pos, c=st[cand.id].pos; st[gk.id].pos=c; st[cand.id].pos=g; st[gk.id].shift=0; st[cand.id].shift=0;
-          events.push({t:at, half:at<=halfLen?1:2, kind:'gk', inId:cand.id, outId:gk.id}); }
-        gkB=at+GKC;
-      } else {
-        const bench=S.players.filter(p=>!st[p.id].pos).sort((a,b)=>owed(b.id)-owed(a.id)||a.id-b.id);
-        if(bench.length){
-          const mustFixFem=S.minF>0 && femOn()<S.minF && bench.some(b=>b.sex==='f');
-          let outs=S.players.filter(p=>st[p.id].pos && zoneOf(st[p.id].pos)!=='goal');
-          if(mustFixFem) outs=outs.filter(p=>p.sex!=='f');
-          outs.sort((a,b)=>st[b.id].shift-st[a.id].shift||a.id-b.id);
-          const pool=mustFixFem?bench.filter(b=>b.sex==='f'):bench;
-          for(const out of outs){ const z=zoneOf(st[out.id].pos);
-            const inP=pool.find(b=>legal(b,out)&&prefW(b,z)>=1)||pool.find(b=>legal(b,out));
-            if(inP){ const slot=st[out.id].pos; events.push({t:at, half:at<=halfLen?1:2, kind:'sub', inId:inP.id, outId:out.id, slot});
-              st[inP.id].pos=slot; st[inP.id].shift=0; st[out.id].pos=null; st[out.id].shift=0; break; } }
-        }
-        subB=at+C;
-      }
-    }
-    return {startLineup, events, halfLen};
-  }
-  function renderGamePlan(){
-    const g=gamePlan();
-    const start=g.startLineup.filter(s=>s.name).map(s=>`${esc(s.name)} <b>${s.label}</b>`).join(' · ');
-    let html=`<div class="gp-start">On now — ${start||'nobody on court'}</div>`;
-    if(!g.events.length){ html+='<div class="plan-empty">No further changes projected — everyone tracks to target.</div>'; }
-    else { let lastHalf=0;
-      g.events.forEach(e=>{ if(e.half!==lastHalf){ html+=`<div class="gp-half">${e.half===1?'1st half':'2nd half'}</div>`; lastHalf=e.half; }
-        const tt=e.half===2?e.t-g.halfLen:e.t;
-        const txt = e.kind==='gk' ? `<b>${esc(P(e.inId).name)}</b> takes goal` : `<b>${esc(P(e.inId).name)}</b> for ${esc(P(e.outId).name)}`;
-        html+=`<div class="gpr"><span class="gt">${short(Math.max(0,tt))}</span><span class="gx">${txt}</span><span class="gs">${e.kind==='gk'?'GK':e.slot}</span></div>`;
-      });
-    }
-    $('#planGame').innerHTML=`<div class="gp">${html}</div>`;
-  }
+  /* The old standalone game-plan projection was removed: the Plan screen's timetable and the live
+     strip both project from the one authoritative engine (engine v2, in simulate()). */
 
   /* capture tonight's game — JSON to clipboard */
   function gameJSON(){
@@ -1286,18 +1183,11 @@
   }
 
   let SN=loadSeason();
-  function openSeason(){ renderSeason(); $('#seasonScrim').classList.add('open'); }
-  function renderSeason(){
-    const agg=seasonAgg(SN);
-    $('#seasonSub').textContent=`${SN.games.length} game${SN.games.length===1?'':'s'} logged · totals build across the season (kept separately from the live game).`;
-    if(!agg.length){ $('#seasonTable').innerHTML='<div class="plan-empty">No games yet — add the current game, or import a “Copy game” JSON below.</div>'; }
-    else {
-      $('#seasonTable').innerHTML='<div class="sn-head"><span>Player</span><span>GP</span><span>Mins</span><span>Gls</span><span>+/−</span><span>GK</span></div>'+
-        agg.map(a=>{ const pm=a.pmGames?sgn(a.pm):'–'; const gk=a.gkSec>0?fmt(a.gkSec)+(a.gaGames?` · ${a.ga} GA`:''):'–';
-          return `<div class="sn-row"><span class="sn-nm">${esc(a.name)}</span><span class="sn-m">${a.games}</span><span class="sn-m mono">${fmt(a.sec)}</span><span class="sn-m">${a.goals}</span><span class="sn-m ${a.pmGames&&a.pm>0?'pos':''} ${a.pmGames&&a.pm<0?'neg':''}">${pm}</span><span class="sn-m mono">${gk}</span></div>`; }).join('');
-    }
-    $('#seasonGames').innerHTML=SN.games.length?('<div class="eyebrow plan-label" style="margin-top:12px">Games</div>'+SN.games.map((g,i)=>
-      `<div class="sn-game"><span class="sn-gt">${(g.savedAt||'').slice(0,10)||'game'} · ${g.source==='import'?'imported':'live'}</span><span class="sn-gs mono">${g.scoreFor}–${g.scoreAgainst}</span><button type="button" class="sn-del" data-i="${i}">✕</button></div>`).join('')):'';
+  /* Season SCREEN removed for now — the store below keeps building in the background so a season
+     view can return later with the history intact. Games are auto-captured at full-time. */
+  function captureSeasonGame(){   // called once at full-time; dedupes on the game's start marker
+    try{ if(!S.players.length) return; if(S.seasonCaptured) return;
+      SN.games.push(gameToRecord()); saveSeason(SN); S.seasonCaptured=true; save(); }catch(e){}
   }
 
   /* ============================ STRATEGY PLANNER ============================
@@ -1456,7 +1346,13 @@
       timetable:sm.events.map(e=>({half:e.half, time:short(e.half===2?e.t-sm.halfLen:e.t), change:e.kind==='gk'?`${P(e.inId).name} takes goal`:`${P(e.inId).name} for ${P(e.outId).name}`, slot:e.kind==='gk'?'GK':e.slot})) };
   }
 
-  function openStrat(){ if(!S.strategies.length){ const s=newStrategy('Plan A'); S.strategies.push(s); selStrat=s.id; save(); } else if(!curStrat()) selStrat=S.strategies[0].id; renderStrat(); $('#stratScrim').classList.add('open'); }
+  function openStrat(){
+    if(!S.strategies.length){ S.strategies.push(newStrategy('Game plan')); }
+    S.strategies.length=1;                       // one plan only — keep it simple
+    selStrat=S.strategies[0].id;
+    if(S.activeStrat!==selStrat){ S.activeStrat=selStrat; applyActive(S.strategies[0]); }   // the one plan is always the live plan
+    save(); renderStrat(); $('#stratScrim').classList.add('open');
+  }
   function timetableHTML(sm){
     const start=slotDefs().map(sl=>{ const pid=(sm.strat.starters||{})[sl.k]; const p=pid!=null?P(pid):null; return p?`${esc(p.name)} <b>${sl.label}</b>`:null; }).filter(Boolean).join(' · ');
     let html=`<div class="gp"><div class="gp-start">Start — ${start||'set a start line'}</div>`;
@@ -1471,7 +1367,6 @@
     const s=sm.strat, act=S.activeStrat===s.id, biasPct=Math.round((s.bias==null?.5:s.bias)*100);
     const slotChips=slotDefs().map(sl=>{ const pid=(s.starters||{})[sl.k]; const p=pid!=null?P(pid):null; return `<button type="button" class="st-slot" data-act="slot" data-slot="${sl.k}"><b>${sl.label}</b>${p?esc(p.name):'—'}</button>`; }).join('');
     return `<div class="st-ed">
-      <div class="ed-row"><label>Name</label><input class="nm ed-in" type="text" value="${esc(s.name)}" data-f="name"></div>
       <div class="ed-row"><label>Formation</label><div class="seg-tog">${FORMATION_ORDER.map(id=>`<button type="button" data-act="fm" data-v="${id}" class="${(s.formation||S.formation)===id?'on':''}">${FORMATIONS[id].label}</button>`).join('')}</div></div>
       <div class="ed-row"><label>Rotate</label><div class="seg-tog"><button type="button" data-act="unit" data-v="individual" class="${s.unit!=='line'?'on':''}">Individually</button><button type="button" data-act="unit" data-v="line" class="${s.unit==='line'?'on':''}">In pairs</button></div></div>
       <div class="ed-row"><label>Shift</label><input class="mono ed-num" type="number" min="30" max="600" value="${s.shiftSec||S.shiftT}" data-f="shift"><span class="ed-unit">sec / change</span></div>
@@ -1479,37 +1374,13 @@
       <div class="ed-row"><label>Balance</label><input type="range" min="0" max="100" step="5" value="${biasPct}" data-f="bias"></div>
       <div class="baslab"><span>Even time</span><span class="mono">${biasPct}% win</span><span>Win</span></div>
       <div class="ed-row top"><label>Start line</label><div class="ed-col"><div class="st-slots">${slotChips}</div><div class="ed-btns"><button type="button" class="ministr" data-act="auto">Auto by rating</button><button type="button" class="ministr" data-act="current">Use current lineup</button></div></div></div>
-      <div class="st-actions"><button type="button" class="ministr ${act?'on':''}" data-act="active">${act?'✓ Active plan':'Set as active'}</button><button type="button" class="ministr" data-act="dup">Duplicate</button><button type="button" class="ministr danger" data-act="del">Delete</button></div>
       <div class="eyebrow plan-label" style="margin-top:12px">Timetable — who goes where, when</div>
       ${timetableHTML(sm)}</div>`;
   }
   function renderStrat(){
-    $('#stratSub').textContent=`Compare plans across the full 2×${S.halfLen}:00 game${S.minF>0?` · min ${S.minF} ♀ on court`:''}. Player ratings (Roster) drive the “win” weighting.`;
-    if(!S.strategies.length){ $('#stratList').innerHTML='<div class="plan-empty">No plans yet — tap “New plan”.</div>'; $('#stratEdit').innerHTML=''; return; }
-    const sims=S.strategies.map(s=>simulate(s));   // from kickoff for planning/compare (never pass map's index as `live`)
-    const bSpread=Math.min(...sims.map(s=>s.metrics.spread)), bKey=Math.max(...sims.map(s=>s.metrics.keyStr)), bAvg=Math.max(...sims.map(s=>s.metrics.avgStr));
-    $('#stratList').innerHTML='<div class="st-cmp"><div class="st-head"><span>Plan</span><span>Spread</span><span>Avg</span><span>Key</span><span>Subs</span></div>'+sims.map(sm=>{ const s=sm.strat, m=sm.metrics, a=S.activeStrat===s.id;
-      return `<button type="button" class="st-row ${selStrat===s.id?'sel':''} ${a?'active':''}" data-sid="${s.id}">
-        <span class="st-nm">${a?'<span class="abadge">On</span>':''}${esc(s.name)}</span>
-        <span class="st-m ${m.spread===bSpread?'best':''}">${fmt(m.spread)}</span>
-        <span class="st-m ${Math.abs(m.avgStr-bAvg)<.01?'best':''}">${m.avgStr.toFixed(1)}</span>
-        <span class="st-m ${Math.abs(m.keyStr-bKey)<.01?'best':''}">${m.keyStr.toFixed(1)}</span>
-        <span class="st-m">${m.subs}</span></button>`; }).join('')+'</div>';
-    const sm=sims.find(x=>x.strat.id===selStrat)||sims[0]; selStrat=sm.strat.id;
-    $('#stratEdit').innerHTML=stratEditHTML(sm);
-  }
-
-  /* burger menu (phone) */
-  function openMenu(){
-    let items=`<button type="button" class="menu-item" data-act="strategy">Strategy<span class="mi-sub">plan &amp; compare rotations</span></button>
-      <button type="button" class="menu-item" data-act="season">Season<span class="mi-sub">totals &amp; +/−</span></button>
-      <button type="button" class="menu-item" data-act="plan">Game plan<span class="mi-sub">rotations &amp; targets</span></button>
-      <button type="button" class="menu-item" data-act="events">Events<span class="mi-sub">match timeline</span></button>
-      <button type="button" class="menu-item" data-act="stats">Stats<span class="mi-sub">time &amp; zones</span></button>
-      <button type="button" class="menu-item" data-act="roster">Roster &amp; Settings</button>`;
-    items+=`<div class="menu-ver">Build ${VERSION}</div>`;
-    $('#menuItems').innerHTML=items;
-    $('#menuScrim').classList.add('open');
+    $('#stratSub').textContent=`Your rotation plan for the full 2×${S.halfLen}:00 game${S.minF>0?` · min ${S.minF} ♀ on court`:''}. Player ratings (Roster) drive the “win” weighting.`;
+    if(!curStrat()) return;
+    $('#stratEdit').innerHTML=stratEditHTML(simulate(curStrat()));   // from kickoff, engine v2
   }
 
   /* stats / histogram (team-relative — compares players against each other) */
@@ -1523,10 +1394,11 @@
        <div class="m"><span class="v mono">${fmt(mx-mn)}</span><span class="l">Spread (most − least)</span></div>
        <div class="m"><span class="v mono">${fmt(Math.max(...playing.map(p=>p.zone.goal)))}</span><span class="l">Longest in goal</span></div>`;
     const hasPM=S.events.some(e=>(e.type==='for'||e.type==='against')&&Array.isArray(e.onCourt));
+    const T=computeTargets();
     $('#histo').innerHTML=ps.map(p=>{
-      const segs=['att','mid','def','goal'].map(z=>p.zone[z]>0?`<span class="seg ${ZCLASS[z]}" style="width:${(p.zone[z]/max)*100}%"></span>`:'').join('');
+      const segs=['att','def','goal'].map(z=>p.zone[z]>0?`<span class="seg ${ZCLASS[z]}" style="width:${(p.zone[z]/max)*100}%"></span>`:'').join('');
       const pm=pmFor(p); const pmHtml=hasPM?`<span class="hpm ${pm>0?'pos':(pm<0?'neg':'')}">${sgn(pm)}</span>`:'';
-      return `<div class="hrow"><span class="hn">${esc(p.name)} <small>${p.pos||'bench'}</small></span><div class="htrack">${segs}</div>${pmHtml}<span class="ht mono">${fmt(p.sec)}</span></div>`;
+      return `<div class="hrow"><span class="hn">${esc(p.name)} <small>${p.pos||'bench'}</small></span><div class="htrack">${segs}</div>${pmHtml}<span class="ht mono">${fmt(p.sec)}<small class="htgt">/ ${fmt(T.tgt[p.id]||0)}</small></span></div>`;
     }).join('');
     // on-court impact (+/−): goals scored vs conceded while each player was on — who swings the game
     const gEv=S.events.filter(e=>(e.type==='for'||e.type==='against')&&Array.isArray(e.onCourt));
@@ -1574,7 +1446,7 @@
 
   /* roster editor */
   function drawFmSettings(){ $('#fmSettings').innerHTML=FORMATION_ORDER.map(id=>`<button type="button" data-fm="${id}" class="${S.formation===id?'on':''}">${FORMATIONS[id].label}</button>`).join(''); }
-  function openRoster(){ $('#halfLen').value=S.halfLen; $('#shiftT').value=S.shiftT; $('#gkT').value=S.gkT; $('#minF').value=S.minF; drawFmSettings(); drawRoster(); $('#rosterScrim').classList.add('open'); }
+  function openRoster(){ $('#halfLen').value=S.halfLen; $('#shiftT').value=S.shiftT; $('#gkT').value=S.gkT; $('#minF').value=S.minF; $('#buildVer').textContent=VERSION; drawFmSettings(); drawRoster(); $('#rosterScrim').classList.add('open'); }
   const RATLBL={att:'ATT',def:'DEF',gk:'GK',fit:'FIT'};
   function drawRoster(){
     $('#rosterBody').innerHTML=S.players.map(p=>{
@@ -1641,26 +1513,9 @@
     $('#againstBtn').addEventListener('click',goalAgainst);
     $('#undoBtn').addEventListener('click',undoLast);
     $('#toastUndo').addEventListener('click',undoLast);
-    $('#menuBtn').addEventListener('click',openMenu);
-    $('#menuScrim').addEventListener('click',e=>{if(e.target.id==='menuScrim')$('#menuScrim').classList.remove('open');});
-    $('#menuItems').addEventListener('click',e=>{
-      const b=e.target.closest('.menu-item'); if(!b)return;
-      if(b.dataset.act==='half'){ armConfirm(b,halfConfirmLabel(),()=>{ $('#menuScrim').classList.remove('open'); halfAction(); }); return; }
-      $('#menuScrim').classList.remove('open');
-      ({strategy:openStrat, season:openSeason, plan:openPlan, events:openTimeline, stats:openStats, roster:openRoster})[b.dataset.act]();
-    });
-    $('#planBtn').addEventListener('click',openPlan);
-    $('#planCopy').addEventListener('click',copyGame);
-    $('#planDone').addEventListener('click',()=>$('#planScrim').classList.remove('open'));
-    $('#planScrim').addEventListener('click',e=>{if(e.target.id==='planScrim')$('#planScrim').classList.remove('open');});
-    $('#planTable').addEventListener('click',e=>{
-      const b=e.target.closest('.pref'); if(!b)return;
-      const p=P(+b.dataset.pid), z=b.dataset.z;
-      p.pref[z]=prefW(p,z)>1?0.25:(prefW(p,z)<1?1:2);   // normal → prefer → avoid → normal
-      save(); renderPlan();
-    });
+    $('#planBtn').addEventListener('click',openStrat);   // header "Plan" opens the planner: formation, shifts, keeper, Win↔Even, start line, timetable
+    $('#stratGame').addEventListener('click',copyGame);
     $('#fmSettings').addEventListener('click',e=>{ const b=e.target.closest('[data-fm]'); if(!b)return; setFormation(b.dataset.fm); drawFmSettings(); });
-    $('#stratNew').addEventListener('click',()=>{ const s=newStrategy('Plan '+String.fromCharCode(65+S.strategies.length)); S.strategies.push(s); selStrat=s.id; save(); renderStrat(); });
     $('#stratDone').addEventListener('click',()=>{ $('#stratScrim').classList.remove('open'); render(); });   // pick up edits to the active plan on the live strip
     $('#stratCopy').addEventListener('click',()=>{ const s=curStrat(); if(s)copyText(JSON.stringify(stratJSON(s),null,2),'Plan copied — paste to save or share'); });
     $('#stratScrim').addEventListener('click',e=>{
@@ -1682,13 +1537,6 @@
     $('#stratScrim').addEventListener('change',e=>{ const s=curStrat(); if(!s)return;
       if(e.target.dataset.f==='bias'){ s.bias=Math.max(0,Math.min(1,(+e.target.value)/100)); save(); renderStrat(); }
       else if(e.target.dataset.f==='shift'){ s.shiftSec=Math.max(30,Math.min(600,+e.target.value||s.shiftSec)); save(); renderStrat(); } });
-    $('#seasonDone').addEventListener('click',()=>$('#seasonScrim').classList.remove('open'));
-    $('#seasonScrim').addEventListener('click',e=>{if(e.target.id==='seasonScrim')$('#seasonScrim').classList.remove('open');});
-    $('#seasonAdd').addEventListener('click',()=>{ SN.games.push(gameToRecord()); saveSeason(SN); renderSeason(); toast('Current game added to season',false); });
-    $('#seasonImportToggle').addEventListener('click',()=>{ const b=$('#seasonImport'); b.hidden=!b.hidden; });
-    $('#seasonImportDo').addEventListener('click',()=>{ let obj=null; try{obj=JSON.parse($('#seasonJSON').value);}catch(e){} const rec=recordFromJSON(obj); if(!rec){ toast('Could not read that JSON — paste a “Copy game” export',false); return; } SN.games.push(rec); saveSeason(SN); $('#seasonJSON').value=''; $('#seasonImport').hidden=true; renderSeason(); toast('Game imported to season',false); });
-    $('#seasonGames').addEventListener('click',e=>{ const d=e.target.closest('.sn-del'); if(!d)return; if(!d.classList.contains('arm')){ d.classList.add('arm'); d.textContent='?'; setTimeout(()=>{ if(d.isConnected){d.classList.remove('arm'); d.textContent='✕';} },2500); return; } SN.games.splice(+d.dataset.i,1); saveSeason(SN); renderSeason(); });
-    $('#seasonClear').addEventListener('click',e=>{ const b=e.currentTarget; if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to clear'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Clear season'; },2500); return; } b.classList.remove('arm'); b.textContent='Clear season'; SN={games:[]}; saveSeason(SN); renderSeason(); });
     $('#statsBtn').addEventListener('click',openStats);
     $('#statsDone').addEventListener('click',()=>$('#statsScrim').classList.remove('open'));
     $('#statsScrim').addEventListener('click',e=>{if(e.target.id==='statsScrim')$('#statsScrim').classList.remove('open');});
@@ -1707,7 +1555,7 @@
     $('#resetGame').addEventListener('click',e=>{ const b=e.currentTarget;
       if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to reset'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Reset game'; },2500); return; }
       b.classList.remove('arm'); b.textContent='Reset game';
-      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
+      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0;S.seasonCaptured=false; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
     $('#rosterBody').addEventListener('click',e=>{
       const rr=e.target.closest('.rat-row');
       if(rr){ const b=e.target.closest('.ratbtn'); if(b){ const p=P(+rr.dataset.id); const k=b.dataset.k; p.rat=Object.assign(newRat(),p.rat); p.rat[k]=p.rat[k]>=5?1:p.rat[k]+1; drawRoster(); save(); } return; }
