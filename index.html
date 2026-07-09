@@ -634,7 +634,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='36 · sex markers';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='37 · keeper + gk fix';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1271,7 +1271,9 @@
   let selStrat=null;
   const RATATTR={goal:'gk',def:'def',att:'att'};
   function fitFor(p,z){ const r=Object.assign(newRat(),p&&p.rat); if(z==='goal')return r.gk; if(z==='def')return r.def; if(z==='mid')return (r.att+r.def)/2; return r.att; }
-  function currentStarters(){ const st={}; slotDefs().forEach(s=>{ const p=inSlot(s.k); if(p)st[s.k]=p.id; }); return st; }
+  // backfill any empty slot (e.g. GK) with the best available unused player so a plan is never short a position
+  function fillStarters(st){ const used=new Set(Object.values(st).filter(v=>v!=null)); slotDefs().forEach(s=>{ if(st[s.k]==null){ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} } }); return st; }
+  function currentStarters(){ const st={}; slotDefs().forEach(s=>{ const p=inSlot(s.k); if(p)st[s.k]=p.id; }); return fillStarters(st); }
   function autoStarters(){ const used=new Set(), st={}; slotDefs().forEach(s=>{ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} }); return st; }
   function defaultStarters(){ const cur=currentStarters(); return Object.keys(cur).length?cur:autoStarters(); }
   function newStrategy(name){ return {id:S.nextStratId++, name:name||'Plan', formation:S.formation, unit:'individual', shiftSec:S.shiftT||180, gkSec:S.gkT||300, gkPlan:'rotate', bias:0.5, starters:defaultStarters()}; }
@@ -1355,10 +1357,13 @@
       advance(at);
       if(at===htAt){ S.players.forEach(p=>{st[p.id].shift=0; st[p.id].run=0;}); htDone=true; subB=halfLen+C; gkB=hasGoal?halfLen+GKC:Infinity; continue; }
       if(hasGoal&&gkRotate&&at===gkB){
-        // share the goal role: the outfielder who's had least goal-time takes over in goal (their running load then discharges)
+        // every GKC seconds the engine RE-PICKS the keeper: blend goal-time fairness with GK rating by the same
+        // Win↔Even weight. Equal → whoever's kept least takes goal (share the rest). Win → the strongest keeper,
+        // though the growing fairness penalty still gives them a breather eventually. Only swaps if it's an upgrade.
         const gk=S.players.find(p=>st[p.id].pos&&zoneOf(st[p.id].pos)==='goal');
-        const cand=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal'&&p.id!==(gk&&gk.id)).sort((a,b)=>st[a.id].goal-st[b.id].goal||a.id-b.id)[0];
-        if(gk&&cand){ const g=st[gk.id].pos,c=st[cand.id].pos; st[gk.id].pos=c; st[cand.id].pos=g; st[gk.id].shift=0; st[cand.id].shift=0; events.push({t:Math.round(prev),half:prev<halfLen?1:2,kind:'gk',inId:cand.id,outId:gk.id}); }
+        const gkScore=id=>(1-w)*(-st[id].goal/C)+w*fitN(P(id),'goal');
+        const best=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal').sort((a,b)=>gkScore(b.id)-gkScore(a.id)||st[a.id].goal-st[b.id].goal||a.id-b.id)[0];
+        if(gk&&best&&gkScore(best.id)>gkScore(gk.id)){ const g=st[gk.id].pos,c=st[best.id].pos; st[gk.id].pos=c; st[best.id].pos=g; st[gk.id].shift=0; st[best.id].shift=0; events.push({t:Math.round(prev),half:prev<halfLen?1:2,kind:'gk',inId:best.id,outId:gk.id}); }
         gkB=at+GKC; continue;
       }
       rotateOnce(); if(unit==='line') rotateOnce();   // "in pairs" = two changes at the same stoppage
@@ -1401,7 +1406,7 @@
     $('#ttlDetail').innerHTML = rows || '<div class="ttl-d-empty">No further changes projected.</div>';
   }
 
-  function cycleStarter(s,k){ s.starters=Object.assign({},s.starters); const ids=S.players.map(p=>p.id); if(!ids.length)return; let i=s.starters[k]!=null?ids.indexOf(s.starters[k]):-1; i=(i+1)%ids.length; const cand=ids[i]; Object.keys(s.starters).forEach(kk=>{ if(kk!==k&&s.starters[kk]===cand) delete s.starters[kk]; }); s.starters[k]=cand; }
+  function cycleStarter(s,k){ s.starters=Object.assign({},s.starters); const ids=S.players.map(p=>p.id); if(!ids.length)return; let i=s.starters[k]!=null?ids.indexOf(s.starters[k]):-1; i=(i+1)%ids.length; const cand=ids[i]; Object.keys(s.starters).forEach(kk=>{ if(kk!==k&&s.starters[kk]===cand) delete s.starters[kk]; }); s.starters[k]=cand; fillStarters(s.starters); }
   function applyStarters(starters){ if(!starters)return; S.players.forEach(p=>{p.pos=null;}); const used=new Set(); slotDefs().forEach(sl=>{ const pid=starters[sl.k]; const p=pid!=null?P(pid):null; if(p&&!used.has(p.id)){ p.pos=sl.k; p.posSec=0; p.shiftSec=0; used.add(p.id);} }); S.players.forEach(p=>{ if(!p.pos)p.restSec=p.restSec||0; }); }
   function applyActive(s){ if(!s)return; S.shiftT=Math.max(30,s.shiftSec||S.shiftT); S.gkT=Math.max(30,s.gkSec||S.gkT);
     if(s.formation&&s.formation!==S.formation) setFormation(s.formation);
@@ -1424,12 +1429,14 @@
       `<button type="button" class="menu-item" data-act="strategy">Plan<span class="mi-sub">formation, shifts, keeper, start line</span></button>
        <button type="button" class="menu-item" data-act="events">Events<span class="mi-sub">match timeline</span></button>
        <button type="button" class="menu-item" data-act="stats">Stats<span class="mi-sub">time &amp; zones</span></button>
-       <button type="button" class="menu-item" data-act="roster">Roster &amp; Settings</button>`;
+       <button type="button" class="menu-item" data-act="roster">Roster &amp; Settings</button>`
+      +`<div class="menu-ver">Build ${(VERSION.match(/^\d+/)||[''])[0]}</div>`;
     $('#menuScrim').classList.add('open');
   }
   function openStrat(){
     if(!S.strategies.length){ S.strategies.push(newStrategy('Game plan')); }
     S.strategies.length=1;                       // one plan only — keep it simple
+    S.strategies[0].starters=fillStarters(S.strategies[0].starters||{});   // repair any empty slot (e.g. a GK orphaned by earlier edits)
     selStrat=S.strategies[0].id;
     if(S.activeStrat!==selStrat){ S.activeStrat=selStrat; applyActive(S.strategies[0]); }   // the one plan is always the live plan
     save(); renderStrat(); $('#stratScrim').classList.add('open');
@@ -1452,7 +1459,7 @@
       <div class="ed-row"><label>Rotate</label><div class="seg-tog"><button type="button" data-act="unit" data-v="individual" class="${s.unit!=='line'?'on':''}">Individually</button><button type="button" data-act="unit" data-v="line" class="${s.unit==='line'?'on':''}">In pairs</button></div></div>
       <div class="ed-row"><label>Shift</label><input class="mono ed-num" type="number" min="30" max="600" value="${s.shiftSec||S.shiftT}" data-f="shift"><span class="ed-unit">sec / change</span></div>
       <div class="ed-row"><label>Keeper</label><div class="seg-tog"><button type="button" data-act="gk" data-v="rotate" class="${(s.gkPlan||'rotate')!=='fixed'?'on':''}">Rotate</button><button type="button" data-act="gk" data-v="fixed" class="${s.gkPlan==='fixed'?'on':''}">Fixed</button></div></div>
-      ${(s.gkPlan||'rotate')!=='fixed'?`<div class="ed-row"><label>Keeper swap</label><input class="mono ed-num" type="number" min="60" max="1200" value="${s.gkSec||S.gkT||300}" data-f="gksec"><span class="ed-unit">sec in goal</span></div>`:''}
+      ${(s.gkPlan||'rotate')!=='fixed'?`<div class="ed-row"><label>Re-pick keeper</label><input class="mono ed-num" type="number" min="60" max="1200" value="${s.gkSec||S.gkT||300}" data-f="gksec"><span class="ed-unit">sec · engine picks who</span></div>`:''}
       <div class="ed-row"><label>Balance</label><input type="range" min="0" max="100" step="5" value="${biasPct}" data-f="bias"></div>
       <div class="baslab"><span>Even time</span><span class="mono">${biasPct}% win</span><span>Win</span></div>
       <div class="ed-row top"><label>Start line</label><div class="ed-col"><div class="st-slots">${slotChips}</div><div class="ed-btns"><button type="button" class="ministr" data-act="auto">Auto by rating</button><button type="button" class="ministr" data-act="current">Use current lineup</button></div></div></div>
