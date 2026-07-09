@@ -139,6 +139,8 @@
   .sexdot{display:inline-block; width:4px; height:4px; border-radius:50%; margin-left:7px; vertical-align:middle; flex:none;}
   .sexdot.f{background:var(--fem);}
   .sexdot.m{background:var(--male);}
+  /* female marker — a small pink "F" square, matching the roster player style */
+  .fbadge{display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; margin-left:6px; border-radius:4px; background:var(--panel-hi); border:1px solid var(--fem); color:var(--fem); font-size:9px; font-weight:800; line-height:1; vertical-align:middle; flex:none;}
   .inel{opacity:.4;}
   @keyframes due-pulse{0%,100%{opacity:1;} 50%{opacity:.55;}}
   /* gentle "shift's up" pulse on a player once their ticker passes the target — subtle amber ring */
@@ -608,9 +610,7 @@
   <div class="field fm-field"><label>Formation</label><div id="fmSettings" class="seg-tog"></div></div>
   <div class="fields">
     <div class="field"><label for="halfLen">Half (min)</label><input class="mono" id="halfLen" type="number" min="1" max="60" inputmode="numeric"></div>
-    <div class="field"><label for="shiftT">Shift length (sec)</label><input class="mono" id="shiftT" type="number" min="30" max="600" inputmode="numeric"></div>
-    <div class="field"><label for="gkT">Keeper alert (sec)</label><input class="mono" id="gkT" type="number" min="30" max="1200" inputmode="numeric"></div>
-    <div class="field"><label for="minF">Min ♀ on court</label><input class="mono" id="minF" type="number" min="0" max="4" inputmode="numeric"></div>
+    <div class="field"><label for="minF">Min <span class="fbadge">F</span> on court</label><input class="mono" id="minF" type="number" min="0" max="4" inputmode="numeric"></div>
   </div>
   <div class="menu-ver">Build <span id="buildVer"></span></div>
   <div class="sheet-foot"><button type="button" class="danger" id="resetGame">Reset game</button><button type="button" id="rosterDone">Done</button></div>
@@ -621,7 +621,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='33 · close buttons';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='34 · settings & F badge';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -827,7 +827,7 @@
     return html;
   }
   const tlBarHTML=p=>`<span class="p-tlbar" data-tl="${p.id}">${tlInner(p)}</span>`;
-  const femHTML=p=>S.minF>0?`<span class="sexdot ${p.sex==='f'?'f':'m'}"></span>`:'';
+  const femHTML=p=>p.sex==='f'?'<span class="fbadge">F</span>':'';   // females get a pink "F" square; males unmarked
   const idHTML=(p,chip)=>`<div class="p-id"><span class="p-name"><span class="p-dot"></span><span class="p-nm">${esc(p.name)}${femHTML(p)}</span></span><span class="p-chip">${chip}</span></div>`;
   const clockHTML=(label,secs,over)=>`<div class="p-clock"><div class="p-cl">${label}</div><div class="p-cv mono${over?' over':''}">${fmt(secs)}</div></div>`;
   const footHTML=(p,gk)=>`<div class="p-foot"><div class="p-tl">Total</div><div class="p-tv mono">${fmt(p.sec)}</div><div class="p-zbar">${selfZbarHTML(p,gk)}</div></div>`;
@@ -836,13 +836,13 @@
   const owedTxt=(p,T)=>{const d=paceDiff(p,T); return Math.abs(d)<30?'on target':(d<0?'owed '+short(-d):'over '+short(d));};
   // plan-driven, notification only: the on-court player the plan takes off next / the keeper due to swap
   const courtStatus=(p,rec)=>{
-    if(S.sel===p.id) return '<span class="pill sel">Selected</span>';
+    if(S.sel===p.id) return '';   // selection shown by the row highlight — no redundant pill
     // name the incoming player so the coach sees exactly who to bring on (⇄ = swap in)
     const ev=rec&&rec.evs.find(e=>e.outId===p.id);
     if(ev) return `<span class="pill off${rec.now?' due':''}">⇄ ${nmOf(ev.inId)} · ${rec.now?'now':short(rec.dueIn)}</span>`;
     return '';
   };
-  const benchStatus=(p,rec)=>S.sel===p.id?'<span class="pill sel">Selected</span>':'';   // bench is selection-only — no tap-to-sub
+  const benchStatus=(p,rec)=>'';   // selection shown by the row highlight; bench is selection-only
   // gentle row pulse when the plan says this player is due off / keeper due to swap right now
   const dueRow=(p,rec)=>!!rec&&S.sel!==p.id&&rec.now&&rec.evs.some(e=>e.outId===p.id);
   const stateCls=p=>S.sel===p.id?' is-sel':'';
@@ -921,7 +921,7 @@
     const warn=$('#courtWarn');
     const below=S.minF>0&&rosterFem()>=S.minF&&femCourt()<S.minF;
     warn.hidden=!below;
-    if(below) warn.textContent=`Only ${femCourt()} ♀ on court — need ${S.minF}`;
+    if(below) warn.innerHTML=`Only ${femCourt()} <span class="fbadge">F</span> on court — need ${S.minF}`;
     updateScores();
     renderClock(); updateUndo();
     sizeCourtCards(); renderTeamTL();
@@ -1001,7 +1001,7 @@
         if(!(pendingOverride&&pendingOverride.a===S.sel&&pendingOverride.b===id&&now-pendingOverride.at<4000)){
           pendingOverride={a:S.sel,b:id,at:now};
           const next=femCourt()+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0);
-          toast(`Only ${next} ♀ would be on court (need ${S.minF}) — tap <b>${esc(b.name)}</b> again to sub anyway`,false);
+          toast(`Only ${next} <span class="fbadge">F</span> would be on court (need ${S.minF}) — tap <b>${esc(b.name)}</b> again to sub anyway`,false);
           return;
         }
       }
@@ -1390,6 +1390,7 @@
       <div class="ed-row"><label>Rotate</label><div class="seg-tog"><button type="button" data-act="unit" data-v="individual" class="${s.unit!=='line'?'on':''}">Individually</button><button type="button" data-act="unit" data-v="line" class="${s.unit==='line'?'on':''}">In pairs</button></div></div>
       <div class="ed-row"><label>Shift</label><input class="mono ed-num" type="number" min="30" max="600" value="${s.shiftSec||S.shiftT}" data-f="shift"><span class="ed-unit">sec / change</span></div>
       <div class="ed-row"><label>Keeper</label><div class="seg-tog"><button type="button" data-act="gk" data-v="rotate" class="${(s.gkPlan||'rotate')!=='fixed'?'on':''}">Rotate</button><button type="button" data-act="gk" data-v="fixed" class="${s.gkPlan==='fixed'?'on':''}">Fixed</button></div></div>
+      ${(s.gkPlan||'rotate')!=='fixed'?`<div class="ed-row"><label>Keeper swap</label><input class="mono ed-num" type="number" min="60" max="1200" value="${s.gkSec||S.gkT||300}" data-f="gksec"><span class="ed-unit">sec in goal</span></div>`:''}
       <div class="ed-row"><label>Balance</label><input type="range" min="0" max="100" step="5" value="${biasPct}" data-f="bias"></div>
       <div class="baslab"><span>Even time</span><span class="mono">${biasPct}% win</span><span>Win</span></div>
       <div class="ed-row top"><label>Start line</label><div class="ed-col"><div class="st-slots">${slotChips}</div><div class="ed-btns"><button type="button" class="ministr" data-act="auto">Auto by rating</button><button type="button" class="ministr" data-act="current">Use current lineup</button></div></div></div>
@@ -1397,7 +1398,7 @@
       ${timetableHTML(sm)}</div>`;
   }
   function renderStrat(){
-    $('#stratSub').textContent=`Your rotation plan for the full 2×${S.halfLen}:00 game${S.minF>0?` · min ${S.minF} ♀ on court`:''}. Player ratings (Roster) drive the “win” weighting.`;
+    $('#stratSub').textContent=`Your rotation plan for the full 2×${S.halfLen}:00 game${S.minF>0?` · min ${S.minF} female on court`:''}. Player ratings (Roster) drive the “win” weighting.`;
     if(!curStrat()) return;
     $('#stratEdit').innerHTML=stratEditHTML(simulate(curStrat()));   // from kickoff, engine v2
   }
@@ -1465,7 +1466,7 @@
 
   /* roster editor */
   function drawFmSettings(){ $('#fmSettings').innerHTML=FORMATION_ORDER.map(id=>`<button type="button" data-fm="${id}" class="${S.formation===id?'on':''}">${FORMATIONS[id].label}</button>`).join(''); }
-  function openRoster(){ $('#halfLen').value=S.halfLen; $('#shiftT').value=S.shiftT; $('#gkT').value=S.gkT; $('#minF').value=S.minF; $('#buildVer').textContent=VERSION; drawFmSettings(); drawRoster(); $('#rosterScrim').classList.add('open'); }
+  function openRoster(){ $('#halfLen').value=S.halfLen; $('#minF').value=S.minF; $('#buildVer').textContent=VERSION; drawFmSettings(); drawRoster(); $('#rosterScrim').classList.add('open'); }
   const RATLBL={att:'ATT',def:'DEF',gk:'GK',fit:'FIT'};
   const rosterOpen=new Set();   // which players have their ratings panel expanded (ratings hidden by default)
   function drawRoster(){
@@ -1570,7 +1571,8 @@
     $('#stratScrim').addEventListener('input',e=>{ const s=curStrat(); if(!s)return; if(e.target.dataset.f==='name'){ s.name=e.target.value; save(); const nm=$(`.st-row[data-sid="${s.id}"] .st-nm`); if(nm){ const a=S.activeStrat===s.id; nm.innerHTML=(a?'<span class="abadge">On</span>':'')+esc(s.name); } } });
     $('#stratScrim').addEventListener('change',e=>{ const s=curStrat(); if(!s)return;
       if(e.target.dataset.f==='bias'){ s.bias=Math.max(0,Math.min(1,(+e.target.value)/100)); save(); renderStrat(); }
-      else if(e.target.dataset.f==='shift'){ s.shiftSec=Math.max(30,Math.min(600,+e.target.value||s.shiftSec)); save(); renderStrat(); } });
+      else if(e.target.dataset.f==='shift'){ s.shiftSec=Math.max(30,Math.min(600,+e.target.value||s.shiftSec)); if(S.activeStrat===s.id)S.shiftT=s.shiftSec; save(); renderStrat(); }
+      else if(e.target.dataset.f==='gksec'){ s.gkSec=Math.max(60,Math.min(1200,+e.target.value||s.gkSec)); if(S.activeStrat===s.id)S.gkT=s.gkSec; save(); renderStrat(); } });
     $('#statsBtn').addEventListener('click',openStats);
     $('#statsDone').addEventListener('click',()=>$('#statsScrim').classList.remove('open'));
     $('#statsScrim').addEventListener('click',e=>{if(e.target.id==='statsScrim')$('#statsScrim').classList.remove('open');});
@@ -1584,7 +1586,7 @@
     $('#scorerScrim').addEventListener('click',e=>{if(e.target.id==='scorerScrim')closeScorer();});
     $('#rosterDone').addEventListener('click',()=>{$('#rosterScrim').classList.remove('open');render();});
     $('#addPlayer').addEventListener('click',()=>{S.players.push(newPlayer(S.nextId++,'New player',null));drawRoster();save();});
-    ['halfLen','shiftT','gkT'].forEach(k=>$('#'+k).addEventListener('change',e=>{S[k]=Math.max(1,+e.target.value||S[k]);save();render();}));
+    $('#halfLen').addEventListener('change',e=>{S.halfLen=Math.max(1,+e.target.value||S.halfLen);save();render();});
     $('#minF').addEventListener('change',e=>{ const v=e.target.value.trim(); if(v===''||isNaN(+v)){e.target.value=S.minF;return;} S.minF=Math.max(0,Math.min(4,Math.floor(+v))); e.target.value=S.minF; save();render();});
     $('#resetGame').addEventListener('click',e=>{ const b=e.currentTarget;
       if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to reset'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Reset game'; },2500); return; }
