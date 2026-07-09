@@ -453,6 +453,7 @@
   .roster-row input.nm{flex:1 1 auto; min-width:0; width:0;}
   .roster-row .sexbtn{flex:0 0 44px; width:44px; height:44px; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted-2); font-size:16px; font-weight:700; line-height:1; display:flex; align-items:center; justify-content:center;}
   .roster-row .sexbtn.f{color:var(--fem); background:var(--panel-hi); border-color:var(--fem);}
+  .roster-row .sexbtn.m{color:var(--male); background:var(--panel-hi); border-color:var(--male);}
   .roster-row .posbtn{flex:0 0 66px; width:66px; height:44px; padding:0; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; text-align:center;}
   .roster-row .posbtn.is-on{background:var(--def); color:#fff; border-color:transparent;}
   .roster-row .posbtn.gk{background:var(--gk); color:#241a00; border-color:transparent;}
@@ -633,7 +634,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='35 · half-time five + detail';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='36 · sex markers';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -839,7 +840,7 @@
     return html;
   }
   const tlBarHTML=p=>`<span class="p-tlbar" data-tl="${p.id}">${tlInner(p)}</span>`;
-  const femHTML=p=>p.sex==='f'?'<span class="fbadge">F</span>':'';   // females get a pink "F" square; males unmarked
+  const femHTML=p=>S.minF>0?`<span class="sexdot ${p.sex==='f'?'f':'m'}"></span>`:'';   // home list: small pink/blue 4px dot
   const idHTML=(p,chip)=>`<div class="p-id"><span class="p-name"><span class="p-dot"></span><span class="p-nm">${esc(p.name)}${femHTML(p)}</span></span><span class="p-chip">${chip}</span></div>`;
   const clockHTML=(label,secs,over)=>`<div class="p-clock"><div class="p-cl">${label}</div><div class="p-cv mono${over?' over':''}">${fmt(secs)}</div></div>`;
   const footHTML=(p,gk)=>`<div class="p-foot"><div class="p-tl">Total</div><div class="p-tv mono">${fmt(p.sec)}</div><div class="p-zbar">${selfZbarHTML(p,gk)}</div></div>`;
@@ -1538,7 +1539,7 @@
       return `<div class="roster-entry${rosterOpen.has(p.id)?' open':''}">
         <div class="roster-row" data-id="${p.id}">
           <input class="nm" type="text" value="${esc(p.name)}" data-f="name">
-          <button type="button" class="sexbtn ${p.sex==='f'?'f':''}" data-f="sex">${p.sex==='f'?'F':'M'}</button>
+          <button type="button" class="sexbtn ${p.sex==='f'?'f':'m'}" data-f="sex">${p.sex==='f'?'F':'M'}</button>
           <button type="button" class="${cls}" data-f="pos">${lbl}</button>
           <button type="button" class="exp" data-f="exp" aria-label="Ratings">▾</button></div>
         <div class="rat-row" data-id="${p.id}">${rats}<button type="button" class="rm-wide" data-f="rm">Remove</button></div>
