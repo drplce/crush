@@ -256,6 +256,8 @@
   .pickrow{background:var(--board);}
   .pickrow:active{background:var(--panel-hi);}
   .pickrow .r-sub{text-transform:none; letter-spacing:0; font-family:var(--mono); font-size:11px; font-weight:500; color:var(--muted);}
+  .sheet-x{position:sticky; top:0; float:right; z-index:5; width:36px; height:36px; margin:-6px -8px 0 12px; padding:0; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted); font-size:17px; line-height:1; display:flex; align-items:center; justify-content:center;}
+  .sheet-x:active{background:var(--panel-hi); color:var(--text);}
   .sheet-foot{display:flex; gap:12px; margin-top:8px;}
   .sheet-foot button{flex:1; height:54px; border-radius:13px; font-size:16px; font-weight:700; border:1px solid var(--line); background:var(--board); color:var(--text);}
   .sheet-foot .danger{color:var(--att); border-color:rgba(255,115,104,.4);}
@@ -571,26 +573,26 @@
   <div id="menuItems"></div>
 </div></div>
 
-<div class="scrim" id="stratScrim"><div class="sheet">
+<div class="scrim" id="stratScrim"><div class="sheet"><button type="button" class="sheet-x" aria-label="Close">✕</button>
   <h2>Plan</h2><p class="sub" id="stratSub"></p>
   <div id="stratEdit"></div>
   <div class="sheet-foot"><button type="button" id="stratGame">Copy game</button><button type="button" id="stratCopy">Copy plan</button><button type="button" id="stratDone">Done</button></div>
 </div></div>
 
-<div class="scrim" id="scorerScrim"><div class="sheet">
+<div class="scrim" id="scorerScrim"><div class="sheet"><button type="button" class="sheet-x" aria-label="Close">✕</button>
   <h2 id="scorerTitle">Who scored?</h2><p class="sub" id="scorerSub">Tap the scorer — logged to them and added to the scoreline.</p>
   <div id="scorerBody"></div>
   <div class="sheet-foot"><button type="button" id="scorerCancel">Cancel</button></div>
 </div></div>
 
-<div class="scrim" id="tlScrim"><div class="sheet">
+<div class="scrim" id="tlScrim"><div class="sheet"><button type="button" class="sheet-x" aria-label="Close">✕</button>
   <h2>Match timeline</h2><p class="sub">Goals and substitutions as they happened. Tap a goal to fix the scorer; tap ✕ to remove it.</p>
   <div class="tl-score" id="tlScore"></div>
   <div class="tl" id="tl"></div>
   <div class="sheet-foot"><button type="button" id="tlDone">Done</button></div>
 </div></div>
 
-<div class="scrim" id="statsScrim"><div class="sheet">
+<div class="scrim" id="statsScrim"><div class="sheet"><button type="button" class="sheet-x" aria-label="Close">✕</button>
   <h2>Time &amp; zones</h2><p class="sub">Court time per player, split by zone — so you can balance minutes and share the keeper duty.</p>
   <div class="stat-summary" id="statSummary"></div>
   <div id="statImpact"></div>
@@ -599,7 +601,7 @@
   <div class="sheet-foot"><button type="button" id="statsDone">Done</button></div>
 </div></div>
 
-<div class="scrim" id="rosterScrim"><div class="sheet">
+<div class="scrim" id="rosterScrim"><div class="sheet"><button type="button" class="sheet-x" aria-label="Close">✕</button>
   <h2>Roster &amp; Settings</h2><p class="sub">Rename players, set starting positions (tap to cycle Bench → GK → D1 → D2 → F1 → F2), and tune the rotation alerts. Saves automatically.</p>
   <div id="rosterBody"></div>
   <div class="addrow"><button type="button" id="addPlayer">+ Add player</button></div>
@@ -619,7 +621,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='32 · menu & roster';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='33 · close buttons';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1537,6 +1539,13 @@
       const b=e.target.closest('.menu-item'); if(!b)return;
       $('#menuScrim').classList.remove('open');
       ({strategy:openStrat, events:openTimeline, stats:openStats, roster:openRoster})[b.dataset.act]();
+    });
+    // top-right ✕ on every sheet — same effect as its Done/Cancel, no scrolling to the bottom
+    document.addEventListener('click',e=>{ const x=e.target.closest('.sheet-x'); if(!x)return;
+      const scrim=x.closest('.scrim'); if(!scrim)return;
+      if(scrim.id==='scorerScrim'){ closeScorer(); return; }
+      scrim.classList.remove('open');
+      if(scrim.id==='stratScrim'||scrim.id==='rosterScrim') render();   // pick up plan/roster edits on the live view
     });
     $('#planBtn').addEventListener('click',openStrat);   // header "Plan" (wide screens) opens the planner
     $('#stratGame').addEventListener('click',copyGame);
