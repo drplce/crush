@@ -634,7 +634,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='38 · in-card detail';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='39 · detail on select';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -892,7 +892,7 @@
 
   const dueCls=p=>dueRow(p,curRec)?' due-now':'';   // gentle pulse when the plan says this player is due off now
   /* per-player detail panel (main-screen chevron) — read-only snapshot incl. how they sit vs the team average */
-  const detailOpen=new Set();
+  let selDetail=false;   // is the SELECTED player's detail panel expanded (detail only shows for the selected player)
   function detailHTML(p){
     const T=curT||computeTargets();
     const avg=S.players.reduce((s,x)=>s+x.sec,0)/(S.players.length||1);
@@ -906,9 +906,10 @@
       <span class="dl">Zones</span><span class="dv">${zones}</span>
       ${hasPM?`<span class="dl">Impact +/−</span><span class="dv mono ${pm>0?'over':(pm<0?'under':'')}">${sgn(pm)}</span>`:''}</div>`;
   }
-  const entry=(id,rowHTML)=>`<div class="p-entry${detailOpen.has(id)?' open':''}">${rowHTML}<div class="det-panel">${detailHTML(P(id))}</div></div>`;
-  const detTog=id=>`<span class="det-tog" data-det="${id}" aria-label="Player detail">${detailOpen.has(id)?'▴':'▾'}</span>`;
-  function toggleDetail(id){ if(detailOpen.has(id))detailOpen.delete(id); else detailOpen.add(id); render(); }
+  const detOpen=id=>S.sel===id&&selDetail;   // panel shows only when this player is selected AND expanded
+  const entry=(id,rowHTML)=>`<div class="p-entry${detOpen(id)?' open':''}">${rowHTML}${detOpen(id)?`<div class="det-panel">${detailHTML(P(id))}</div>`:''}</div>`;
+  // chevron appears only once a player is selected — a hint that tapping again opens/closes the detail
+  const detTog=id=>S.sel===id?`<span class="det-tog" aria-hidden="true">${selDetail?'▴':'▾'}</span>`:'';
   /* phone list rows — same DNA and the same .p-* live-update hooks as the cards */
   function courtRowHTML(slot){
     const {k,label,zone}=slot; const gk=zone==='goal';
@@ -1022,8 +1023,12 @@
   /* selection / swaps */
   let pendingOverride=null;   // {a,b,at} — ♀-rule soft block, tap same pair again to override
   function clickPlayer(id){
-    if(S.sel===null){ S.sel=id; render(); return; }
-    if(S.sel===id){ S.sel=null; pendingOverride=null; render(); return; }
+    if(S.sel===null){ S.sel=id; selDetail=false; render(); return; }   // select → chevron appears, detail closed
+    if(S.sel===id){                                                     // re-tap the selected player: expand → collapse+deselect
+      if(!selDetail){ selDetail=true; render(); return; }
+      selDetail=false; S.sel=null; pendingOverride=null; render(); return;
+    }
+    selDetail=false;                                                    // focus moves to another player → close the expansion
     const a=P(S.sel), b=P(id);
     if(!!a.pos!==!!b.pos){                     // bench↔court subs can change the ♀ count
       const inP=a.pos?b:a, outP=a.pos?a:b;
@@ -1588,12 +1593,10 @@
   }
 
   function bind(){
-    const courtTap=e=>{ const t=e.target.closest('.det-tog'); if(t){ toggleDetail(+t.dataset.det); return; }
-      const c=e.target.closest('.pcard,.prow'); if(!c)return; if(c.dataset.id)clickPlayer(+c.dataset.id); else if(c.dataset.slot)clickSlot(c.dataset.slot); };
+    const courtTap=e=>{ const c=e.target.closest('.pcard,.prow'); if(!c)return; if(c.dataset.id)clickPlayer(+c.dataset.id); else if(c.dataset.slot)clickSlot(c.dataset.slot); };
     $('#courtCards').addEventListener('click',courtTap);
     $('#courtList').addEventListener('click',courtTap);
-    $('#benchGrid').addEventListener('click',e=>{ const t=e.target.closest('.det-tog'); if(t){ toggleDetail(+t.dataset.det); return; }
-      const c=e.target.closest('.pcard,.prow'); if(c)clickPlayer(+c.dataset.id); });
+    $('#benchGrid').addEventListener('click',e=>{ const c=e.target.closest('.pcard,.prow'); if(c)clickPlayer(+c.dataset.id); });
     LIST_MQ.addEventListener('change',()=>{ render(); });
     // regain focus / unlock the phone → immediately reconcile the clock to real time (don't wait for the throttled interval)
     document.addEventListener('visibilitychange',()=>{ if(!document.hidden) tick(); });
