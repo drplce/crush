@@ -632,7 +632,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='43 · fairer subs + font fix';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='44 · late-join fix';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1689,7 +1689,9 @@
     $('#scorerBody').addEventListener('click',e=>{const b=e.target.closest('.pickrow'); if(!b)return; if(S.reassign)doReassign(+b.dataset.id); else logFor(+b.dataset.id);});
     $('#scorerScrim').addEventListener('click',e=>{if(e.target.id==='scorerScrim')closeScorer();});
     $('#rosterDone').addEventListener('click',()=>{$('#rosterScrim').classList.remove('open');render();});
-    $('#addPlayer').addEventListener('click',()=>{S.players.push(newPlayer(S.nextId++,'New player',null));drawRoster();save();});
+    $('#addPlayer').addEventListener('click',()=>{ const p=newPlayer(S.nextId++,'New player',null); const el=gameElapsed();
+      if(el>0){ p.restSec=el; p.seg=[{z:'bench',s:el}]; }   // joined late: count as fully rested (so the plan will sub them on) and pad the time strip so it lines up
+      S.players.push(p); drawRoster(); save(); });
     $('#halfLen').addEventListener('change',e=>{S.halfLen=Math.max(1,+e.target.value||S.halfLen);save();render();});
     $('#minF').addEventListener('change',e=>{ const v=e.target.value.trim(); if(v===''||isNaN(+v)){e.target.value=S.minF;return;} S.minF=Math.max(0,Math.min(4,Math.floor(+v))); e.target.value=S.minF; save();render();});
     $('#resetGame').addEventListener('click',e=>{ const b=e.currentTarget;
