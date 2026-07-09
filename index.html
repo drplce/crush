@@ -618,6 +618,7 @@
   <div id="rosterBody"></div>
   <div class="addrow"><button type="button" id="addPlayer">+ Add player</button></div>
   <div class="field fm-field"><label>Formation</label><div id="fmSettings" class="seg-tog"></div></div>
+  <div class="field fm-field"><label>Sound cues</label><div id="soundTog" class="seg-tog"><button type="button" data-snd="1">On</button><button type="button" data-snd="0">Off</button></div></div>
   <div class="fields">
     <div class="field"><label for="halfLen">Half (min)</label><input class="mono" id="halfLen" type="number" min="1" max="60" inputmode="numeric"></div>
     <div class="field"><label for="minF">Min <span class="fbadge">F</span> on court</label><input class="mono" id="minF" type="number" min="0" max="4" inputmode="numeric"></div>
@@ -631,7 +632,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='41 · scorer matches home';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='42 · sound cues';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -715,7 +716,7 @@
     ],
     scoreUs:0,scoreThem:0, running:false,half:1,elapsed:0,
     halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, lastSub:0, nextId:9, sel:null, history:[],
-    events:[], nextEid:1, phase:'h1', chimed:false, formation:'2-2', h1Secs:0,
+    events:[], nextEid:1, phase:'h1', chimed:false, warn2:false, sound:true, formation:'2-2', h1Secs:0,
     strategies:[], activeStrat:null, nextStratId:1
   });
 
@@ -727,7 +728,7 @@
         delete S.fmOpen;
         S.sel=null; S.reassign=null;
         S.events=S.events||[]; S.nextEid=S.nextEid||1;
-        S.phase=S.phase||(S.half===2?'h2':'h1'); S.chimed=S.chimed||false;
+        S.phase=S.phase||(S.half===2?'h2':'h1'); S.chimed=S.chimed||false; S.warn2=S.warn2||false; if(S.sound===undefined)S.sound=true;
         S.formation=S.formation||'2-2';
         S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; if(!Array.isArray(p.seg))p.seg=[]; p.rat=Object.assign(newRat(),p.rat||{}); p.pref=Object.assign(newPref(),p.pref||{}); if(p.sex!=='f')p.sex='m';});
         if(S.h1Secs===undefined)S.h1Secs=0;
@@ -776,6 +777,7 @@
     if(step<=0) return;
     S.elapsed+=step;
     S.players.forEach(p=>{ if(p.pos){ p.sec+=step; p.shiftSec+=step; p.posSec+=step; p.zone[zoneOf(p.pos)]+=step; } else { p.restSec+=step; } pushSeg(p, p.pos?zoneOf(p.pos):'bench', step); });
+    if(!S.warn2 && S.halfLen*60>150 && S.elapsed>=S.halfLen*60-120 && S.elapsed<S.halfLen*60){ S.warn2=true; sfx('twomin'); toast('2 minutes to '+(S.phase==='h1'?'half-time':'full-time'),false); }
     if(!S.chimed && S.elapsed>=S.halfLen*60){ S.chimed=true; beep(); toast((S.phase==='h1'?'1st':'2nd')+' half target reached — clock keeps running, end the half when the ref does',false); renderClock(); }
     liveUpdate(); save();
   }
@@ -797,7 +799,7 @@
       // so shift/position timers start fresh; press ▶ (clock) to start the 2nd half when the ref does.
       hist.shifts=S.players.map(p=>({id:p.id,shiftSec:p.shiftSec,posSec:p.posSec}));
       S.h1Secs=S.elapsed; S.players.forEach(p=>{ p.shiftSec=0; p.posSec=0; });
-      setRunning(false); S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; S.lastSub=S.halfLen*60; beep();
+      setRunning(false); S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; S.warn2=false; S.lastSub=S.halfLen*60; beep();
       toast('Half-time — '+fmt(S.h1Secs)+' played. Tap ▶ to start the 2nd half',true); }
     else if(S.phase==='h2'){ setRunning(false); S.phase='ft'; beep(); toast('Full-time — '+S.scoreUs+'–'+S.scoreThem,true); captureSeasonGame(); }
     render(); save();
@@ -809,7 +811,19 @@
     btn._armT=setTimeout(()=>{ if(btn.isConnected){ btn.classList.remove('arm'); btn.textContent=btn._txt; } },2500);
   }
   const halfConfirmLabel=()=>({h1:'Tap again to end 1st half',h2:'Tap again to end game',ft:''}[S.phase]);
-  function beep(){ try{const ac=new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.type='sine';o.frequency.value=660;g.gain.setValueAtTime(.001,ac.currentTime);g.gain.exponentialRampToValueAtTime(.4,ac.currentTime+.02);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.6);o.start();o.stop(ac.currentTime+.62);}catch(e){} }
+  /* ---- sound cues (Web Audio; no asset files) ---- */
+  let _ac=null;
+  function audioCtx(){ try{ if(!_ac)_ac=new (window.AudioContext||window.webkitAudioContext)(); if(_ac.state==='suspended')_ac.resume(); }catch(e){ _ac=null; } return _ac; }
+  function unlockAudio(){ audioCtx(); }   // call on a user gesture (clock tap) so iOS lets sound play later
+  const soundOn=()=>S.sound!==false;
+  function tone(freq,at,dur,vol){ const ac=audioCtx(); if(!ac)return; const o=ac.createOscillator(),g=ac.createGain(); o.connect(g); g.connect(ac.destination); o.type='sine'; o.frequency.value=freq; const t=ac.currentTime+at; g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+.02); g.gain.exponentialRampToValueAtTime(.0001,t+dur); o.start(t); o.stop(t+dur+.03); }
+  function sfx(name){ if(!soundOn())return;
+    if(name==='sub'){ tone(660,0,.18,.32); tone(920,.16,.30,.32); }                         // rising two-note — a change is due now
+    else if(name==='keeper'){ tone(560,0,.16,.30); tone(440,.15,.32,.30); }                 // distinct falling pair — keeper swap due
+    else if(name==='twomin'){ tone(780,0,.12,.30); tone(780,.2,.12,.30); tone(780,.4,.24,.30); }  // triple pip — 2 minutes to go
+    else if(name==='full'){ tone(700,0,.5,.35); tone(520,.45,.6,.35); }                     // longer low tone — half/full-time
+  }
+  function beep(){ sfx('full'); }   // half / full-time & target reached — routed through the sound engine (respects the toggle)
 
   /* render */
   function domZone(p){ let best=null,bv=0; ['att','mid','def','goal'].forEach(z=>{ if(p.zone[z]>bv){bv=p.zone[z];best=z;} }); return best; }
@@ -953,6 +967,7 @@
     updateScores();
     renderClock(); updateUndo();
     sizeCourtCards(); renderTeamTL();
+    playCue(curRec);
   }
   // per-second update: only touch text + classes, never rebuild (keeps taps reliable). A pair change forces one re-render.
   function liveUpdate(){
@@ -961,7 +976,7 @@
     const rec=getRec();
     if(getRec._k!==renderedPairKey){ render(); }
     else {
-      curRec=rec;
+      curRec=rec; playCue(curRec);
       const court=courtRoot();
       S.players.forEach(p=>{
         if(p.pos){
@@ -1197,6 +1212,13 @@
     return r;
   }
   getRec._k='';
+  // audible nudge when a change is due "now" — fires once on the transition, then a gentle re-nudge every 20s while unactioned
+  let _cueKey='', _cueAt=0;
+  function playCue(rec){
+    if(!soundOn()||!rec||!rec.now||!rec.evs||!rec.evs.length){ if(!rec||!rec.now)_cueKey=''; return; }
+    const key=getRec._k, now=Date.now(), isGk=rec.evs.every(e=>e.kind==='gk');
+    if(key!==_cueKey || now-_cueAt>20000){ _cueKey=key; _cueAt=now; sfx(isGk?'keeper':'sub'); }
+  }
   const ZNAME={goal:'GK',def:'D',mid:'M',att:'F'};
   const short=s=>Math.floor(s/60)+':'+String(Math.floor(s)%60).padStart(2,'0');
   /* The old standalone game-plan projection was removed: the Plan screen's timetable and the live
@@ -1544,7 +1566,8 @@
 
   /* roster editor */
   function drawFmSettings(){ $('#fmSettings').innerHTML=FORMATION_ORDER.map(id=>`<button type="button" data-fm="${id}" class="${S.formation===id?'on':''}">${FORMATIONS[id].label}</button>`).join(''); }
-  function openRoster(){ $('#halfLen').value=S.halfLen; $('#minF').value=S.minF; $('#buildVer').textContent=VERSION; drawFmSettings(); drawRoster(); $('#rosterScrim').classList.add('open'); }
+  function drawSoundTog(){ $('#soundTog').querySelectorAll('[data-snd]').forEach(b=>b.classList.toggle('on',(b.dataset.snd==='1')===soundOn())); }
+  function openRoster(){ $('#halfLen').value=S.halfLen; $('#minF').value=S.minF; $('#buildVer').textContent=VERSION; drawFmSettings(); drawSoundTog(); drawRoster(); $('#rosterScrim').classList.add('open'); }
   const RATLBL={att:'ATT',def:'DEF',gk:'GK',fit:'FIT'};
   const rosterOpen=new Set();   // which players have their ratings panel expanded (ratings hidden by default)
   function drawRoster(){
@@ -1605,7 +1628,7 @@
     document.addEventListener('visibilitychange',()=>{ if(!document.hidden) tick(); });
     window.addEventListener('focus',tick);
     window.addEventListener('pageshow',tick);
-    $('#clockBtn').addEventListener('click',()=>setRunning(!S.running));   // single tap = play/pause
+    $('#clockBtn').addEventListener('click',()=>{ unlockAudio(); setRunning(!S.running); });   // single tap = play/pause (also unlocks audio for iOS)
     $('#clockEnd').addEventListener('click',e=>armConfirm(e.currentTarget,halfConfirmLabel(),halfAction));   // appears only while paused; two-tap confirm
     $('#teamTL').addEventListener('click',()=>{ $('#teamTL').classList.toggle('open'); });
     $('#scoredBtn').addEventListener('click',openScorer);
@@ -1629,6 +1652,7 @@
     $('#planBtn').addEventListener('click',openStrat);   // header "Plan" (wide screens) opens the planner
     $('#stratGame').addEventListener('click',copyGame);
     $('#fmSettings').addEventListener('click',e=>{ const b=e.target.closest('[data-fm]'); if(!b)return; setFormation(b.dataset.fm); drawFmSettings(); });
+    $('#soundTog').addEventListener('click',e=>{ const b=e.target.closest('[data-snd]'); if(!b)return; unlockAudio(); S.sound=b.dataset.snd==='1'; save(); drawSoundTog(); if(S.sound)sfx('sub'); });   // sample chime + unlock on enable
     $('#stratDone').addEventListener('click',()=>{ $('#stratScrim').classList.remove('open'); render(); });   // pick up edits to the active plan on the live strip
     $('#stratCopy').addEventListener('click',()=>{ const s=curStrat(); if(s)copyText(JSON.stringify(stratJSON(s),null,2),'Plan copied — paste to save or share'); });
     $('#stratScrim').addEventListener('click',e=>{
@@ -1669,7 +1693,7 @@
     $('#resetGame').addEventListener('click',e=>{ const b=e.currentTarget;
       if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to reset'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Reset game'; },2500); return; }
       b.classList.remove('arm'); b.textContent='Reset game';
-      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0;S.seasonCaptured=false; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
+      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.warn2=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0;S.seasonCaptured=false; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
     $('#rosterBody').addEventListener('click',e=>{
       const rr=e.target.closest('.rat-row');
       if(rr){ const p=P(+rr.dataset.id);
