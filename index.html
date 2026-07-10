@@ -632,7 +632,7 @@
 <script>
 (function(){
   const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';
-  const VERSION='44 · late-join fix';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='45 · keep sub pill on select';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -860,7 +860,7 @@
   const owedTxt=(p,T)=>{const d=paceDiff(p,T); return Math.abs(d)<30?'on target':(d<0?'owed '+short(-d):'over '+short(d));};
   // plan-driven, notification only: the on-court player the plan takes off next / the keeper due to swap
   const courtStatus=(p,rec)=>{
-    if(S.sel===p.id) return '';   // selection shown by the row highlight — no redundant pill
+    // keep the sub cue visible even when this player is selected (selection is shown by the row highlight);
     // name the incoming player so the coach sees exactly who to bring on (⇄ = swap in)
     const ev=rec&&rec.evs.find(e=>e.outId===p.id);
     if(ev) return `<span class="pill off${rec.now?' due':''}">⇄ ${nmOf(ev.inId)} · ${rec.now?'now':short(rec.dueIn)}</span>`;
