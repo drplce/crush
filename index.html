@@ -631,8 +631,8 @@
 
 <script>
 (function(){
-  const KEY='crushControl.v3', OLDKEY='crushControl.v2', SEASON_KEY='crushControl.season';   // storage keys kept across the "Goal Girls" rebrand so saved games/season survive
-  const VERSION='46 · Goal Girls';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const KEY='goalGirls.v1', SEASON_KEY='goalGirls.season';   // "Goal Girls" storage (old crushControl.* keys are dropped — a clean flush)
+  const VERSION='47 · fresh storage';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -722,7 +722,7 @@
 
   function load(){
     try{
-      const r=localStorage.getItem(KEY)||localStorage.getItem(OLDKEY); // fall back to (and migrate) the old key
+      const r=localStorage.getItem(KEY);
       if(r){
         S=JSON.parse(r);
         delete S.fmOpen;
