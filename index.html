@@ -646,7 +646,7 @@
 <script>
 (function(){
   const KEY='goalGirls.v1', SEASON_KEY='goalGirls.season';   // "Goal Girls" storage (old crushControl.* keys are dropped — a clean flush)
-  const VERSION='53 · suggested settings';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='54 · lineup floor fix';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1403,7 +1403,21 @@
   // backfill any empty slot (e.g. GK) with the best available unused player so a plan is never short a position
   function fillStarters(st){ const used=new Set(Object.values(st).filter(v=>v!=null)); slotDefs().forEach(s=>{ if(st[s.k]==null){ const c=zoneCands(S.players.filter(p=>!used.has(p.id)),s.zone).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} } }); return st; }
   function currentStarters(){ const st={}; slotDefs().forEach(s=>{ const p=inSlot(s.k); if(p)st[s.k]=p.id; }); return fillStarters(st); }
-  function autoStarters(){ const used=new Set(), st={}; slotDefs().forEach(s=>{ const c=zoneCands(S.players.filter(p=>!used.has(p.id)),s.zone).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} }); return st; }
+  // A line-up the APP picks must satisfy the ♀ floor — otherwise "Auto by rating" suggests a five that
+  // breaks the app's own rule and gets corrected a moment later by the first sub prompt.
+  function fixStartersMinF(map){
+    const mf=minFEff(); if(!mf) return map;
+    const used=new Set(Object.values(map).filter(v=>v!=null));
+    const femN=()=>Object.values(map).filter(id=>P(id)&&P(id).sex==='f').length;
+    let guard=0;
+    while(femN()<mf && guard++<6){
+      const mSlot=slotDefs().find(s=>s.zone!=='goal'&&P(map[s.k])&&P(map[s.k]).sex==='m'); if(!mSlot) break;
+      const fem=S.players.filter(p=>p.sex==='f'&&!used.has(p.id)).sort((a,b)=>fitFor(b,mSlot.zone)-fitFor(a,mSlot.zone)||a.id-b.id)[0]; if(!fem) break;
+      used.delete(map[mSlot.k]); map[mSlot.k]=fem.id; used.add(fem.id);
+    }
+    return map;
+  }
+  function autoStarters(){ const used=new Set(), st={}; slotDefs().forEach(s=>{ const c=zoneCands(S.players.filter(p=>!used.has(p.id)),s.zone).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} }); return fixStartersMinF(st); }
   function defaultStarters(){ const cur=currentStarters(); return Object.keys(cur).length?cur:autoStarters(); }
   function newStrategy(name){ return {id:S.nextStratId++, name:name||'Plan', formation:S.formation, unit:'individual', shiftSec:S.shiftT||180, gkSec:S.gkT||300, gkPlan:'rotate', bias:0.5, starters:defaultStarters()}; }
   const curStrat=()=>S.strategies.find(x=>x.id===selStrat);
@@ -1430,6 +1444,14 @@
       const used=new Set(), starters=strat.starters||{};
       slots.forEach(s=>{ const pid=starters[s.k]; if(pid!=null&&st[pid]&&!used.has(pid)){ st[pid].pos=s.k; used.add(pid);} });
       slots.forEach(s=>{ if(!S.players.some(p=>st[p.id].pos===s.k)){ const c=zoneCands(S.players.filter(p=>!used.has(p.id)),s.zone).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[c.id].pos=s.k; used.add(c.id);} } });
+      // honour the ♀ floor in the projected opening five too, so the plan never previews an illegal line-up
+      if(minFEff()>0){ let g=0; const femOnCourt=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
+        while(femOnCourt()<minFEff() && g++<6){
+          const mSlot=slots.find(s=>s.zone!=='goal'&&S.players.some(p=>st[p.id].pos===s.k&&p.sex==='m')); if(!mSlot) break;
+          const cur=S.players.find(p=>st[p.id].pos===mSlot.k);
+          const fem=S.players.filter(p=>p.sex==='f'&&!st[p.id].pos).sort((a,b)=>fitFor(b,mSlot.zone)-fitFor(a,mSlot.zone)||a.id-b.id)[0]; if(!fem) break;
+          st[cur.id].pos=null; st[fem.id].pos=mSlot.k; used.delete(cur.id); used.add(fem.id);
+        } }
     }
     const femOn=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
     const legal=(inP,outP)=>{ const mf=minFEff(); if(!mf)return true; const cur=femOn(); const nx=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return nx>=mf||nx>=cur; };
