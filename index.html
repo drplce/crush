@@ -424,6 +424,13 @@
   .ed-in{flex:1; height:40px; padding:0 12px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--text); font-size:15px; font-family:var(--sans);}
   .ed-num{width:74px; height:40px; padding:0 10px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--text); font-size:15px;}
   .ed-unit{font-size:11px; color:var(--muted-2);}
+  .sug-row{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin:-2px 0 8px; padding-left:2px;}
+  .sug-txt{font-size:11.5px; color:var(--muted-2);}
+  .sug-txt b{color:var(--acc); font-weight:800;}
+  .sug-row.ok .sug-txt{color:var(--gk);}
+  .sug-btns{display:flex; gap:6px;}
+  .sug-b{height:26px; min-width:26px; padding:0 8px; border-radius:7px; border:1px solid var(--line); background:var(--board); color:var(--muted); font-size:12px; font-weight:700;}
+  .sug-b.use{background:var(--acc); border-color:transparent; color:#0d0f1a;}
   .ed-col{flex:1; display:flex; flex-direction:column; gap:8px; min-width:0;}
   .ed-btns{display:flex; gap:6px; flex-wrap:wrap;}
   .seg-tog{display:flex; border:1px solid var(--line); border-radius:9px; overflow:hidden;}
@@ -628,7 +635,7 @@
   <div class="field fm-field"><label>Sound cues</label><div id="soundTog" class="seg-tog"><button type="button" data-snd="1">On</button><button type="button" data-snd="0">Off</button></div></div>
   <div class="fields">
     <div class="field"><label for="halfLen">Half (min)</label><input class="mono" id="halfLen" type="number" min="1" max="60" inputmode="numeric"></div>
-    <div class="field"><label for="minF">Min <span class="fbadge">F</span> on court</label><input class="mono" id="minF" type="number" min="0" max="4" inputmode="numeric"></div>
+    <div class="field" id="minFField"><label for="minF">Min <span class="fbadge">F</span> on court</label><input class="mono" id="minF" type="number" min="0" max="4" inputmode="numeric"></div>
   </div>
   <div class="menu-ver">Build <span id="buildVer"></span></div>
   <div class="sheet-foot"><button type="button" class="danger" id="resetGame">Reset game</button><button type="button" id="rosterDone">Done</button></div>
@@ -639,7 +646,7 @@
 <script>
 (function(){
   const KEY='goalGirls.v1', SEASON_KEY='goalGirls.season';   // "Goal Girls" storage (old crushControl.* keys are dropped — a clean flush)
-  const VERSION='52 · stamina + win slider';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='53 · suggested settings';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -768,8 +775,17 @@
   /* mixed-team rule */
   const femCourt=()=>onCourt().filter(p=>p.sex==='f').length;
   const rosterFem=()=>S.players.filter(p=>p.sex==='f').length;
+  // The ♀ floor is a MIXED-TEAM rule. An all-girls or all-boys side ignores it entirely — the setting is
+  // kept (so it comes back if the squad becomes mixed again) but has no effect and its UI stays hidden.
+  const mixedSquad=()=>S.players.some(p=>p.sex==='f')&&S.players.some(p=>p.sex==='m');
+  const minFEff=()=>mixedSquad()?(S.minF||0):0;
+  // suggested rotation settings — derived from squad size so the coach isn't guessing (see Plan)
+  const suggestShift=()=>{ const n=S.players.length, half=(S.halfLen||15)*60;
+    return Math.max(90, Math.min(240, Math.round(half/(2*Math.max(1,n-5))/15)*15)); };
+  const suggestGk=()=>{ const elig=S.players.filter(p=>p.gkOK!==false).length||1, total=(S.halfLen||15)*120;
+    return Math.max(120, Math.min(420, Math.round(total/elig/30)*30)); };
   // a sub is legal unless it takes the on-court female count below the minimum AND makes it worse
-  const swapLegal=(inP,outP)=>{ if(!S.minF) return true; const cur=femCourt(); const next=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return next>=S.minF||next>=cur; };
+  const swapLegal=(inP,outP)=>{ const mf=minFEff(); if(!mf) return true; const cur=femCourt(); const next=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return next>=mf||next>=cur; };
 
   function updateUndo(){ $('#undoBtn').disabled=S.history.length===0; }
   function snap(ids){ return ids.map(id=>{const p=P(id); return {id,pos:p.pos,shiftSec:p.shiftSec,posSec:p.posSec,restSec:p.restSec};}); }
@@ -880,7 +896,7 @@
     return html;
   }
   const tlBarHTML=p=>`<span class="p-tlbar" data-tl="${p.id}">${tlInner(p)}</span>`;
-  const femHTML=p=>S.minF>0?`<span class="sexdot ${p.sex==='f'?'f':'m'}"></span>`:'';   // home list: small pink/blue 4px dot
+  const femHTML=p=>minFEff()>0?`<span class="sexdot ${p.sex==='f'?'f':'m'}"></span>`:'';   // home list: small pink/blue 4px dot
   const idHTML=(p,chip)=>`<div class="p-id"><span class="p-name"><span class="p-dot"></span><span class="p-nm">${esc(p.name)}${femHTML(p)}</span></span><span class="p-chip">${chip}</span></div>`;
   const clockHTML=(label,secs,over)=>`<div class="p-clock"><div class="p-cl">${label}</div><div class="p-cv mono${over?' over':''}">${fmt(secs)}</div></div>`;
   const footHTML=(p,gk)=>`<div class="p-foot"><div class="p-tl">Total</div><div class="p-tv mono">${fmt(p.sec)}</div><div class="p-zbar">${selfZbarHTML(p,gk)}</div></div>`;
@@ -901,7 +917,7 @@
   const stateCls=p=>S.sel===p.id?' is-sel':'';
   // while a player is selected, dim partners the ♀ rule would block (still tappable — override)
   function inelClass(p){
-    if(S.sel===null||S.sel===p.id||!S.minF) return '';
+    if(S.sel===null||S.sel===p.id||!minFEff()) return '';
     const a=P(S.sel); if(!a) return '';
     if(!!a.pos===!!p.pos) return '';                       // court↔court / bench↔bench never change the count
     const inP=a.pos?p:a, outP=a.pos?a:p;
@@ -990,7 +1006,7 @@
     const bench=S.players.filter(p=>!p.pos).sort((a,b)=>paceDiff(a,curT)-paceDiff(b,curT)||a.id-b.id);
     $('#benchGrid').innerHTML = bench.map(p=>list?benchRowHTML(p):benchCardHTML(p)).join('') || '<div class="bench-empty">No bench players</div>';
     const warn=$('#courtWarn');
-    const below=S.minF>0&&rosterFem()>=S.minF&&femCourt()<S.minF;
+    const below=minFEff()>0&&rosterFem()>=minFEff()&&femCourt()<minFEff();
     warn.hidden=!below;
     if(below) warn.innerHTML=`Only ${femCourt()} <span class="fbadge">F</span> on court — need ${S.minF}`;
     updateScores();
@@ -1080,7 +1096,7 @@
         if(!(pendingOverride&&pendingOverride.a===S.sel&&pendingOverride.b===id&&now-pendingOverride.at<4000)){
           pendingOverride={a:S.sel,b:id,at:now};
           const next=femCourt()+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0);
-          toast(`Only ${next} <span class="fbadge">F</span> would be on court (need ${S.minF}) — tap <b>${esc(b.name)}</b> again to sub anyway`,false);
+          toast(`Only ${next} <span class="fbadge">F</span> would be on court (need ${minFEff()}) — tap <b>${esc(b.name)}</b> again to sub anyway`,false);
           return;
         }
       }
@@ -1197,8 +1213,8 @@
     const owedN=p=>Math.max(0,-(paceDiff(p,T)))/120;                 // >0 = behind pace
     const score=(p,z)=>fitFor(p,z)+0.25*owedN(p);                    // strongest first; owed breaks ties
     slots.forEach(s=>{ const c=zoneCands(S.players.filter(p=>!used.has(p.id)),s.zone).sort((a,b)=>score(b,s.zone)-score(a,s.zone)||a.id-b.id)[0]; if(c){chosen[s.k]=c.id; used.add(c.id);} });
-    if(S.minF>0){ let guard=0; const femN=()=>Object.values(chosen).filter(id=>P(id)&&P(id).sex==='f').length;
-      while(femN()<S.minF && guard++<6){
+    if(minFEff()>0){ let guard=0; const femN=()=>Object.values(chosen).filter(id=>P(id)&&P(id).sex==='f').length;
+      while(femN()<minFEff() && guard++<6){
         const mSlot=slots.find(s=>s.zone!=='goal'&&P(chosen[s.k])&&P(chosen[s.k]).sex==='m'); if(!mSlot) break;
         const fem=S.players.filter(p=>p.sex==='f'&&!used.has(p.id)).sort((a,b)=>fitFor(b,mSlot.zone)-fitFor(a,mSlot.zone)||a.id-b.id)[0]; if(!fem) break;
         used.delete(chosen[mSlot.k]); chosen[mSlot.k]=fem.id; used.add(fem.id);
@@ -1416,7 +1432,7 @@
       slots.forEach(s=>{ if(!S.players.some(p=>st[p.id].pos===s.k)){ const c=zoneCands(S.players.filter(p=>!used.has(p.id)),s.zone).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[c.id].pos=s.k; used.add(c.id);} } });
     }
     const femOn=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
-    const legal=(inP,outP)=>{ if(!S.minF)return true; const cur=femOn(); const nx=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return nx>=S.minF||nx>=cur; };
+    const legal=(inP,outP)=>{ const mf=minFEff(); if(!mf)return true; const cur=femOn(); const nx=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return nx>=mf||nx>=cur; };
     // ---- substitution engine v2 (evidence-selected across 432 configs; see /scratchpad subrun2.mjs) ----
     // Fairness is PACE-RELATIVE: expected minutes at time `prev` = T.tgt[id]*(prev/total); paceN>0 = behind pace/owed.
     // Ratings pull is TEMPERED (caps at 0.6 → fairness always keeps ≥40%). Welfare is a soft, steepening run-nudge —
@@ -1461,7 +1477,7 @@
     const events=[];
     const rotateOnce=()=>{
       const bench=S.players.filter(p=>!st[p.id].pos); if(!bench.length)return false;
-      const mustFixFem=S.minF>0&&femOn()<S.minF&&bench.some(b=>b.sex==='f');
+      const mustFixFem=minFEff()>0&&femOn()<minFEff()&&bench.some(b=>b.sex==='f');
       // Normally the keeper isn't a sub candidate (she rotates by position swap). But a player parked in goal is
       // invisible to the welfare check AND goalkeeping bleeds her running load down — so someone can cycle
       // court→goal→court all game and never be offered a real sit. Once she's been on court beyond the
@@ -1492,7 +1508,7 @@
     // Dropping below the ♀ minimum (an injury, someone leaving, a manual swap) shouldn't wait for the next
     // scheduled shift — that left the team short for up to a full shift even with a perfectly attentive coach.
     // When it's breached AND fixable from the bench, the fix becomes due immediately.
-    const femFixable=()=>S.minF>0 && S.players.filter(p=>st[p.id].pos&&p.sex==='f').length<S.minF
+    const femFixable=()=>minFEff()>0 && S.players.filter(p=>st[p.id].pos&&p.sex==='f').length<minFEff()
                         && S.players.some(p=>!st[p.id].pos&&p.sex==='f');
     let urgentAt=-1;
     while(guard++<400){
@@ -1621,8 +1637,9 @@
       <div class="ed-row"><label>Formation</label><div class="seg-tog">${FORMATION_ORDER.map(id=>`<button type="button" data-act="fm" data-v="${id}" class="${(s.formation||S.formation)===id?'on':''}">${FORMATIONS[id].label}</button>`).join('')}</div></div>
       <div class="ed-row"><label>Rotate</label><div class="seg-tog"><button type="button" data-act="unit" data-v="individual" class="${s.unit!=='line'?'on':''}">Individually</button><button type="button" data-act="unit" data-v="line" class="${s.unit==='line'?'on':''}">In pairs</button></div></div>
       <div class="ed-row"><label>Shift</label><input class="mono ed-num" type="number" min="30" max="600" value="${s.shiftSec||S.shiftT}" data-f="shift"><span class="ed-unit">sec / change</span></div>
+      ${sugRow("shift", s.shiftSec||S.shiftT, suggestShift(), S.players.length+" players · "+S.halfLen+"min halves")}
       <div class="ed-row"><label>Keeper</label><div class="seg-tog"><button type="button" data-act="gk" data-v="rotate" class="${(s.gkPlan||'rotate')!=='fixed'?'on':''}">Rotate</button><button type="button" data-act="gk" data-v="fixed" class="${s.gkPlan==='fixed'?'on':''}">Fixed</button></div></div>
-      ${(s.gkPlan||'rotate')!=='fixed'?`<div class="ed-row"><label>Re-pick keeper</label><input class="mono ed-num" type="number" min="60" max="1200" value="${s.gkSec||S.gkT||300}" data-f="gksec"><span class="ed-unit">sec · engine picks who</span></div>`:''}
+      ${(s.gkPlan||'rotate')!=='fixed'?`<div class="ed-row"><label>Re-pick keeper</label><input class="mono ed-num" type="number" min="60" max="1200" value="${s.gkSec||S.gkT||300}" data-f="gksec"><span class="ed-unit">sec · engine picks who</span></div>${sugRow("gksec", s.gkSec||S.gkT||300, suggestGk(), S.players.filter(p=>p.gkOK!==false).length+" can keep · ~one turn each")}`:''}
       <div class="ed-row"><label>Balance</label><input type="range" min="0" max="100" step="5" value="${biasPct}" data-f="bias"></div>
       <div class="baslab"><span>Even time</span><span class="mono">${biasPct}% win</span><span>Win</span></div>
       <div class="ed-row top"><label>Start line</label><div class="ed-col"><div class="st-slots">${slotChips}</div><div class="ed-btns"><button type="button" class="ministr" data-act="auto">Auto by rating</button><button type="button" class="ministr" data-act="current">Use current lineup</button></div></div></div>
@@ -1630,7 +1647,7 @@
       ${timetableHTML(sm)}</div>`;
   }
   function renderStrat(){
-    $('#stratSub').textContent=`Your rotation plan for the full 2×${S.halfLen}:00 game${S.minF>0?` · min ${S.minF} female on court`:''}. Player ratings (Roster) drive the “win” weighting.`;
+    $('#stratSub').textContent=`Your rotation plan for the full 2×${S.halfLen}:00 game${minFEff()>0?` · min ${minFEff()} female on court`:''}. Player ratings (Roster) drive the “win” weighting.`;
     if(!curStrat()) return;
     $('#stratEdit').innerHTML=stratEditHTML(simulate(curStrat()));   // from kickoff, engine v2
   }
@@ -1699,7 +1716,21 @@
   /* roster editor */
   function drawFmSettings(){ $('#fmSettings').innerHTML=FORMATION_ORDER.map(id=>`<button type="button" data-fm="${id}" class="${S.formation===id?'on':''}">${FORMATIONS[id].label}</button>`).join(''); }
   function drawSoundTog(){ $('#soundTog').querySelectorAll('[data-snd]').forEach(b=>b.classList.toggle('on',(b.dataset.snd==='1')===soundOn())); }
-  function openRoster(){ $('#halfLen').value=S.halfLen; $('#minF').value=S.minF; $('#buildVer').textContent=VERSION; drawFmSettings(); drawSoundTog(); drawRoster(); $('#rosterScrim').classList.add('open'); }
+  function openRoster(){ $('#halfLen').value=S.halfLen; $('#minF').value=S.minF;
+    $('#minFField').hidden=!mixedSquad();   // mixed-team rule only — hidden for an all-girls or all-boys side
+    $('#buildVer').textContent=VERSION; drawFmSettings(); drawSoundTog(); drawRoster(); $('#rosterScrim').classList.add('open'); }
+  // Suggested-setting line under a Plan control: says what the app would pick and why, and lets you take it
+  // (or nudge it) in one tap — so these numbers aren't something the coach has to know off the top of their head.
+  function sugRow(field, cur, sug, why){
+    const match=Math.abs(cur-sug)<=1;
+    return `<div class="sug-row${match?' ok':''}">
+      <span class="sug-txt">${match?`✓ Suggested for ${esc(why)}`:`Suggested <b>${sug}s</b> · ${esc(why)}`}</span>
+      <span class="sug-btns">
+        <button type="button" class="sug-b" data-sug="${field}" data-v="${Math.max(30,sug-30)}">−</button>
+        ${match?'':`<button type="button" class="sug-b use" data-sug="${field}" data-v="${sug}">Use ${sug}s</button>`}
+        <button type="button" class="sug-b" data-sug="${field}" data-v="${sug+30}">+</button>
+      </span></div>`;
+  }
   const RATLBL={att:'ATT',def:'DEF',gk:'GK',fit:'STAM'};   // STAM = stamina: how long they last before needing a breather
   const rosterOpen=new Set();   // which players have their ratings panel expanded (ratings hidden by default)
   function drawRoster(){
@@ -1792,6 +1823,11 @@
     $('#stratScrim').addEventListener('click',e=>{
       if(e.target.id==='stratScrim'){ $('#stratScrim').classList.remove('open'); return; }
       const row=e.target.closest('.st-row'); if(row){ selStrat=+row.dataset.sid; renderStrat(); return; }
+      const sg=e.target.closest('[data-sug]');          // suggested shift / keeper: take it, or nudge ±30s
+      if(sg){ const s2=curStrat(); if(!s2)return; const v=+sg.dataset.v;
+        if(sg.dataset.sug==='shift'){ s2.shiftSec=Math.max(30,Math.min(600,v)); if(S.activeStrat===s2.id)S.shiftT=s2.shiftSec; }
+        else { s2.gkSec=Math.max(60,Math.min(1200,v)); if(S.activeStrat===s2.id)S.gkT=s2.gkSec; }
+        save(); renderStrat(); return; }
       const b=e.target.closest('[data-act]'); if(!b)return; const s=curStrat(); if(!s)return; const act=b.dataset.act;
       if(act==='unit'){ s.unit=b.dataset.v; }
       else if(act==='fm'){ s.formation=b.dataset.v; setFormation(b.dataset.v); }   // plan carries its formation; apply to the board so the preview matches
@@ -1840,7 +1876,7 @@
           rosterOpen.delete(p.id); S.players=S.players.filter(x=>x.id!==p.id); if(S.sel===p.id)S.sel=null; clearLock(); pendingOverride=null; drawRoster(); save(); }
         return; }
       const row=e.target.closest('.roster-row'); if(!row)return; const p=P(+row.dataset.id);
-      if(e.target.dataset.f==='sex'){ p.sex=p.sex==='f'?'m':'f'; drawRoster(); save(); }
+      if(e.target.dataset.f==='sex'){ p.sex=p.sex==='f'?'m':'f'; $('#minFField').hidden=!mixedSquad(); drawRoster(); save(); }
       if(e.target.dataset.f==='pos'){ cyclePos(p); drawRoster(); save(); }
       if(e.target.dataset.f==='exp'){ if(rosterOpen.has(p.id))rosterOpen.delete(p.id); else rosterOpen.add(p.id); drawRoster(); } });
     $('#rosterBody').addEventListener('input',e=>{ const row=e.target.closest('.roster-row'); if(!row)return; const p=P(+row.dataset.id); if(e.target.dataset.f==='name')p.name=e.target.value; save(); });
