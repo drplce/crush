@@ -1,0 +1,33 @@
+import { chromium, APP_URL } from './_boot.mjs';
+const b=await chromium.launch(); const ctx=await b.newContext(); const p=await ctx.newPage();
+const errs=[]; p.on('pageerror',e=>errs.push(String(e)));
+await p.goto(APP_URL); await p.waitForTimeout(150);
+await p.click('#clockBtn'); await p.waitForTimeout(20); await p.click('#clockBtn'); await p.waitForTimeout(30);
+await p.evaluate(()=>{ const s=JSON.parse(localStorage.getItem('goalGirls.v1'));
+  s.halfLen=15; s.shiftT=180; s.gkT=300; s.formation='3-1';
+  s.players=s.players.slice(0,7);
+  s.players.forEach((pl,i)=>{ pl.gkOK = i!==1; pl.ctSec=0; });
+  ['GK','D1','F1','F2','F3'].forEach((k,i)=>{ s.players[i].pos=k; });
+  s.players.slice(5).forEach(pl=>pl.pos=null);
+  localStorage.setItem('goalGirls.v1',JSON.stringify(s)); });
+await p.reload(); await p.waitForTimeout(150);
+const optName=await p.evaluate(()=>JSON.parse(localStorage.getItem('goalGirls.v1')).players[1].name);
+// The ENGINE's own full-game plan (Plan timetable) — untouched by any manual clicking
+await p.click('#planBtn'); await p.waitForTimeout(300);
+const planText=await p.evaluate(()=>document.querySelector('#stratScrim')?.innerText||'');
+let pass=0,fail=0; const ok=(n,c,x='')=>{c?pass++:fail++; console.log((c?'  ✓ ':'  ✗ ')+n+(c?'':' — '+x));};
+// lines that assign someone to goal
+const lines=planText.split('\n');
+const takes=lines.filter(l=>/takes goal/.test(l));
+const startLine=lines.find(l=>/^Start/.test(l.trim()))||'';
+const startGK=(startLine.match(/([A-Za-z]+)\s+GK/)||[])[1]||null;
+const goalLines=takes;
+const bad=takes.filter(l=>l.includes(optName)).concat(startGK===optName?['starts in goal']:[]);
+console.log('    start keeper:', startGK);
+console.log('    opted-out player:', optName);
+console.log('    engine goal assignments:'); goalLines.slice(0,10).forEach(l=>console.log('      '+l.trim()));
+ok('engine never assigns opted-out player to goal', bad.length===0, bad.join(' | '));
+ok('engine does schedule keeper rotation', goalLines.length>0);
+ok('no JS errors', errs.length===0, errs.slice(0,2).join('|'));
+console.log(`\n===== ${pass} passed, ${fail} failed =====`);
+await b.close(); if(fail)process.exit(1);
