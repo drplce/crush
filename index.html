@@ -269,8 +269,9 @@
   .pickrow:active{background:var(--panel-hi);}
   .sheet-x{position:sticky; top:0; float:right; z-index:5; width:36px; height:36px; margin:-6px -8px 0 12px; padding:0; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted); font-size:17px; line-height:1; display:flex; align-items:center; justify-content:center;}
   .sheet-x:active{background:var(--panel-hi); color:var(--text);}
-  .sheet-foot{display:flex; gap:12px; margin-top:8px;}
-  .sheet-foot button{flex:1; height:54px; border-radius:13px; font-size:16px; font-weight:700; border:1px solid var(--line); background:var(--board); color:var(--text);}
+  .sheet-foot{display:flex; flex-wrap:wrap; gap:12px; margin-top:8px;}
+  .sheet-foot button{flex:1 1 40%; min-width:130px; height:54px; border-radius:13px; font-size:16px; font-weight:700; border:1px solid var(--line); background:var(--board); color:var(--text);}
+  .sheet-foot #stratShare{background:var(--acc); border-color:transparent; color:#0d0f1a;}
   .sheet-foot .danger{color:var(--att); border-color:rgba(255,115,104,.4);}
 
   /* menu sheet (phone) */
@@ -594,7 +595,7 @@
 <div class="scrim" id="stratScrim"><div class="sheet"><button type="button" class="sheet-x" aria-label="Close">✕</button>
   <h2>Plan</h2><p class="sub" id="stratSub"></p>
   <div id="stratEdit"></div>
-  <div class="sheet-foot"><button type="button" id="stratGame">Copy game</button><button type="button" id="stratCopy">Copy plan</button><button type="button" id="stratDone">Done</button></div>
+  <div class="sheet-foot"><button type="button" id="stratShare">Share game</button><button type="button" id="stratGame">Copy game</button><button type="button" id="stratCopy">Copy plan</button><button type="button" id="stratDone">Done</button></div>
 </div></div>
 
 <div class="scrim" id="scorerScrim"><div class="sheet"><button type="button" class="sheet-x" aria-label="Close">✕</button>
@@ -638,7 +639,7 @@
 <script>
 (function(){
   const KEY='goalGirls.v1', SEASON_KEY='goalGirls.season';   // "Goal Girls" storage (old crushControl.* keys are dropped — a clean flush)
-  const VERSION='48 · goalie opt-out';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='50 · share + engine vs actual';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -723,7 +724,7 @@
     scoreUs:0,scoreThem:0, running:false,half:1,elapsed:0,
     halfLen:16, shiftT:180, gkT:300, minF:2, dv:1, lastSub:0, nextId:9, sel:null, history:[],
     events:[], nextEid:1, phase:'h1', chimed:false, warn2:false, sound:true, formation:'2-2', h1Secs:0,
-    strategies:[], activeStrat:null, nextStratId:1
+    strategies:[], activeStrat:null, nextStratId:1, recLog:[]
   });
 
   function load(){
@@ -733,7 +734,7 @@
         S=JSON.parse(r);
         delete S.fmOpen;
         S.sel=null; S.reassign=null;
-        S.events=S.events||[]; S.nextEid=S.nextEid||1;
+        S.events=S.events||[]; S.nextEid=S.nextEid||1; if(!Array.isArray(S.recLog))S.recLog=[];
         S.phase=S.phase||(S.half===2?'h2':'h1'); S.chimed=S.chimed||false; S.warn2=S.warn2||false; if(S.sound===undefined)S.sound=true;
         S.formation=S.formation||'2-2';
         S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; if(!Array.isArray(p.seg))p.seg=[]; p.rat=Object.assign(newRat(),p.rat||{}); p.pref=Object.assign(newPref(),p.pref||{}); if(p.gkOK===undefined)p.gkOK=true; if(p.sex!=='f')p.sex='m';});
@@ -774,7 +775,21 @@
   function snap(ids){ return ids.map(id=>{const p=P(id); return {id,pos:p.pos,shiftSec:p.shiftSec,posSec:p.posSec,restSec:p.restSec};}); }
   function pushMove(label,ids){ S.history.push({type:'move',label,snap:snap(ids)}); if(S.history.length>25)S.history.shift(); updateUndo(); }
   // log a substitution/position change to the match timeline, linked to the just-pushed move so Undo removes it too
-  function logSub(ev){ ev.eid=S.nextEid++; ev.half=S.half; ev.t=S.elapsed; S.events.push(ev); const h=S.history[S.history.length-1]; if(h&&h.type==='move')h.eid=ev.eid; }
+  function logSub(ev){ ev.eid=S.nextEid++; ev.half=S.half; ev.t=S.elapsed;
+    // stamp what the engine was recommending at this instant, and whether this change followed it
+    const rec=curRec;
+    if(rec&&rec.now&&rec.evs&&rec.evs.length){
+      ev.recOff=rec.evs.map(e=>e.outId).filter(v=>v!=null);
+      ev.recIn=rec.evs.map(e=>e.inId).filter(v=>v!=null);
+      if(ev.type==='sub'){
+        ev.follow = rec.evs.some(e=>e.outId===ev.outId&&e.inId===ev.inId)?'exact'
+                  : rec.evs.some(e=>e.outId===ev.outId||e.inId===ev.inId)?'partial':'off-plan';
+      } else {   // position swap (often a keeper change) — followed if it moves a recommended player
+        const ids=[ev.aId,ev.bId];
+        ev.follow = rec.evs.some(e=>ids.includes(e.inId)||ids.includes(e.outId))?'partial':'off-plan';
+      }
+    } else { ev.follow='off-plan'; }   // nothing was due — your own call
+    S.events.push(ev); const h=S.history[S.history.length-1]; if(h&&h.type==='move')h.eid=ev.eid; }
 
   /* clock — driven by WALL time, not by counting interval ticks, so it stays accurate when the
      tab is backgrounded / the phone locks (browsers throttle setInterval, so we advance by the
@@ -976,7 +991,7 @@
     updateScores();
     renderClock(); updateUndo();
     sizeCourtCards(); renderTeamTL();
-    playCue(curRec);
+    playCue(curRec); logRec(curRec);
   }
   // per-second update: only touch text + classes, never rebuild (keeps taps reliable). A pair change forces one re-render.
   function liveUpdate(){
@@ -985,7 +1000,7 @@
     const rec=getRec();
     if(getRec._k!==renderedPairKey){ render(); }
     else {
-      curRec=rec; playCue(curRec);
+      curRec=rec; playCue(curRec); logRec(curRec);
       const court=courtRoot();
       S.players.forEach(p=>{
         if(p.pos){
@@ -1228,6 +1243,21 @@
     const key=getRec._k, now=Date.now(), isGk=rec.evs.every(e=>e.kind==='gk');
     if(key!==_cueKey || now-_cueAt>20000){ _cueKey=key; _cueAt=now; sfx(isGk?'keeper':'sub'); }
   }
+  // record each DISTINCT "due" recommendation the moment it surfaces — the engine's side of the ledger,
+  // reconciled against the actual subs at export time so you can see engine vs. what you did.
+  let _recLogKey='';
+  function logRec(rec){
+    if(!rec||!rec.now||!rec.evs||!rec.evs.length){ _recLogKey=''; return; }
+    const key=getRec._k; if(key===_recLogKey) return;          // same standing prompt — already logged
+    _recLogKey=key;
+    const kind=rec.halftime?'halftime':(rec.evs.every(e=>e.kind==='gk')?'keeper':'sub');
+    if(!Array.isArray(S.recLog))S.recLog=[];
+    S.recLog.push({ t:Math.round(S.elapsed), half:S.half, kind,
+      off:rec.evs.map(e=>e.outId).filter(v=>v!=null),
+      on:rec.evs.map(e=>e.inId).filter(v=>v!=null) });
+    if(S.recLog.length>300)S.recLog.shift();
+    save();
+  }
   const ZNAME={goal:'GK',def:'D',mid:'M',att:'F'};
   const short=s=>Math.floor(s/60)+':'+String(Math.floor(s)%60).padStart(2,'0');
   /* The old standalone game-plan projection was removed: the Plan screen's timetable and the live
@@ -1235,6 +1265,24 @@
 
   /* capture tonight's game — JSON to clipboard */
   function gameJSON(){
+    const nm=id=>{const p=P(id); return p?p.name:null;};
+    const actualChanges=[...S.events].filter(e=>e.type==='sub'||e.type==='swap');
+    // was a surfaced recommendation actioned? match its "off" player to a real change soon after, same half
+    const recActioned=r=>actualChanges.some(e=>e.half===r.half&&e.t>=r.t-2&&e.t<=r.t+75&&(
+      e.type==='sub' ? r.off.includes(e.outId)
+                     : (r.off.includes(e.aId)||r.off.includes(e.bId)||r.on.includes(e.aId)||r.on.includes(e.bId))));
+    const recLog=Array.isArray(S.recLog)?S.recLog:[];
+    const recommendations=recLog.map(r=>({ half:r.half, time:fmt(r.t), kind:r.kind,
+      off:r.off.map(nm), on:r.on.map(nm), outcome:recActioned(r)?'actioned':'not actioned' }));
+    const subs=actualChanges.sort((a,b)=>a.half-b.half||a.t-b.t).map(e=>{
+      const base=e.type==='swap'
+        ? {kind:'swap', half:e.half, time:fmt(e.t), players:[nm(e.aId),nm(e.bId)]}
+        : {kind:'sub', half:e.half, time:fmt(e.t), on:nm(e.inId), off:e.outId?nm(e.outId):null, slot:e.slot||null};
+      base.vsEngine = e.follow||'off-plan';   // exact | partial | off-plan (your own call)
+      base.engineWanted = e.recOff&&e.recOff.length ? {off:e.recOff.map(nm), on:(e.recIn||[]).map(nm)} : null;
+      return base;
+    });
+    const cnt=f=>actualChanges.filter(e=>(e.follow||'off-plan')===f).length;
     return {
       app:'Goal Girls', exportedAt:new Date().toISOString(),
       formation:S.formation, phase:S.phase, half:S.half, clock:fmt(S.elapsed),
@@ -1243,18 +1291,21 @@
       players:S.players.map(p=>{ const stints=stintsFor(p); return {name:p.name, sex:p.sex, position:p.pos||'bench',
         totalTime:fmt(p.sec), totalSec:p.sec, goals:p.goals||0,
         plusMinus:pmFor(p), keeperGoalsAgainst:gaFor(p),
-        stints, avgShiftSec:stints?Math.round(p.sec/stints):0,
+        stints, avgShiftSec:stints?Math.round(p.sec/stints):0, goalie:p.gkOK===false?'opted out':'eligible',
         zoneSec:{goal:p.zone.goal, defence:p.zone.def, midfield:p.zone.mid, attack:p.zone.att}}; }),
       goals:[...S.events].filter(e=>e.type==='for'||e.type==='against').sort((a,b)=>a.half-b.half||a.t-b.t).map(e=>({
         type:e.type, half:e.half, time:fmt(e.t),
         scorer:e.type==='for'&&e.pid?(P(e.pid)?.name||null):null,
         onCourt:Array.isArray(e.onCourt)?e.onCourt.map(o=>({name:P(o.id)?(P(o.id).name):null, slot:o.slot})):null})),
-      subs:[...S.events].filter(e=>e.type==='sub'||e.type==='swap').sort((a,b)=>a.half-b.half||a.t-b.t).map(e=>{
-        const nm=id=>{const p=P(id); return p?p.name:null;};
-        return e.type==='swap'
-          ? {kind:'swap', half:e.half, time:fmt(e.t), players:[nm(e.aId),nm(e.bId)]}
-          : {kind:'sub', half:e.half, time:fmt(e.t), on:nm(e.inId), off:e.outId?nm(e.outId):null, slot:e.slot||null};
-      }),
+      subs,
+      recommendations,
+      engineVsActual:{
+        yourChanges:actualChanges.length,
+        followedEngine:cnt('exact')+cnt('partial'), followedExact:cnt('exact'), followedPartial:cnt('partial'),
+        yourOwnCall:cnt('off-plan'),
+        promptsShown:recommendations.length,
+        promptsActioned:recommendations.filter(r=>r.outcome==='actioned').length,
+        promptsLapsed:recommendations.filter(r=>r.outcome==='not actioned').length },
     };
   }
   function copyText(text, ok){
@@ -1264,6 +1315,23 @@
   }
   function fbCopy(text,cb){ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.top='-1000px'; document.body.appendChild(ta); ta.focus(); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); cb&&cb(); }
   function copyGame(){ copyText(JSON.stringify(gameJSON(),null,2), 'Game data copied — paste to save tonight’s game'); }
+  function gameFileName(){ const d=new Date(), pad=n=>String(n).padStart(2,'0');
+    return `goalgirls-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}-${S.scoreUs}-${S.scoreThem}.json`; }
+  async function shareGame(){
+    const data=JSON.stringify(gameJSON(),null,2), fname=gameFileName();
+    const blob=new Blob([data],{type:'application/json'});
+    // iOS/modern: hand the file to the native share sheet (AirDrop, Mail, Save to Files…)
+    try{ const file=new File([blob],fname,{type:'application/json'});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], title:'Goal Girls game'}); return; }
+    }catch(e){ if(e&&e.name==='AbortError') return; }   // user cancelled the share sheet
+    // fallback: download the file
+    try{ const url=URL.createObjectURL(blob), a=document.createElement('a');
+      a.href=url; a.download=fname; document.body.appendChild(a); a.click();
+      setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); },1000);
+      toast('Game file saved — '+fname,false);
+    }catch(e){ copyGame(); }   // last resort: clipboard
+  }
 
   /* ============================ SEASON STORE ============================
      A separate, game-surviving log so knowledge builds across the season:
@@ -1663,6 +1731,7 @@
     });
     $('#planBtn').addEventListener('click',openStrat);   // header "Plan" (wide screens) opens the planner
     $('#stratGame').addEventListener('click',copyGame);
+    $('#stratShare').addEventListener('click',shareGame);
     $('#fmSettings').addEventListener('click',e=>{ const b=e.target.closest('[data-fm]'); if(!b)return; setFormation(b.dataset.fm); drawFmSettings(); });
     $('#soundTog').addEventListener('click',e=>{ const b=e.target.closest('[data-snd]'); if(!b)return; unlockAudio(); S.sound=b.dataset.snd==='1'; save(); drawSoundTog(); if(S.sound)sfx('sub'); });   // sample chime + unlock on enable
     $('#stratDone').addEventListener('click',()=>{ $('#stratScrim').classList.remove('open'); render(); });   // pick up edits to the active plan on the live strip
@@ -1707,7 +1776,7 @@
     $('#resetGame').addEventListener('click',e=>{ const b=e.currentTarget;
       if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to reset'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Reset game'; },2500); return; }
       b.classList.remove('arm'); b.textContent='Reset game';
-      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.warn2=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0;S.seasonCaptured=false; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
+      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.warn2=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0;S.seasonCaptured=false;S.recLog=[];_recLogKey=''; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
     $('#rosterBody').addEventListener('click',e=>{
       if(e.target.dataset.f==='gktog'){ const p=P(+e.target.closest('[data-id]').dataset.id); p.gkOK = p.gkOK===false; drawRoster(); save(); render(); return; }
       const rr=e.target.closest('.rat-row');
