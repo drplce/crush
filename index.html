@@ -639,7 +639,7 @@
 <script>
 (function(){
   const KEY='goalGirls.v1', SEASON_KEY='goalGirls.season';   // "Goal Girls" storage (old crushControl.* keys are dropped — a clean flush)
-  const VERSION='50 · share + engine vs actual';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='51 · rest + keeper fixes';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -713,7 +713,7 @@
   let fmOpen=false; // transient UI state — deliberately outside S so it is never persisted
   const newPref=()=>({goal:1,def:1,mid:1,att:1});
   const newRat=()=>({att:3,def:3,gk:3,fit:3});   // 1–5 skill/fitness ratings — the framework the strategy planner weights by
-  const newPlayer=(id,name,pos,sex)=>({id,name,pos,sex:sex||'m',sec:0,shiftSec:0,posSec:0,restSec:0,goals:0,zone:{goal:0,def:0,mid:0,att:0},seg:[],rat:newRat(),pref:newPref(),gkOK:true});
+  const newPlayer=(id,name,pos,sex)=>({id,name,pos,sex:sex||'m',sec:0,shiftSec:0,posSec:0,restSec:0,ctSec:0,goals:0,zone:{goal:0,def:0,mid:0,att:0},seg:[],rat:newRat(),pref:newPref(),gkOK:true});
   const fresh=()=>({
     players:[
       newPlayer(1,'Mia','F1','f'), newPlayer(2,'Jack','F2'),
@@ -737,7 +737,7 @@
         S.events=S.events||[]; S.nextEid=S.nextEid||1; if(!Array.isArray(S.recLog))S.recLog=[];
         S.phase=S.phase||(S.half===2?'h2':'h1'); S.chimed=S.chimed||false; S.warn2=S.warn2||false; if(S.sound===undefined)S.sound=true;
         S.formation=S.formation||'2-2';
-        S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; if(!Array.isArray(p.seg))p.seg=[]; p.rat=Object.assign(newRat(),p.rat||{}); p.pref=Object.assign(newPref(),p.pref||{}); if(p.gkOK===undefined)p.gkOK=true; if(p.sex!=='f')p.sex='m';});
+        S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; if(p.ctSec===undefined)p.ctSec=p.pos?(p.shiftSec||0):0; if(!Array.isArray(p.seg))p.seg=[]; p.rat=Object.assign(newRat(),p.rat||{}); p.pref=Object.assign(newPref(),p.pref||{}); if(p.gkOK===undefined)p.gkOK=true; if(p.sex!=='f')p.sex='m';});
         if(S.h1Secs===undefined)S.h1Secs=0;
         if(!Array.isArray(S.strategies))S.strategies=[]; if(S.activeStrat===undefined)S.activeStrat=null; if(!S.nextStratId)S.nextStratId=1;
         if(S.minF===undefined)S.minF=2;
@@ -800,7 +800,8 @@
   function advanceClock(step){
     if(step<=0) return;
     S.elapsed+=step;
-    S.players.forEach(p=>{ if(p.pos){ p.sec+=step; p.shiftSec+=step; p.posSec+=step; p.zone[zoneOf(p.pos)]+=step; } else { p.restSec+=step; } pushSeg(p, p.pos?zoneOf(p.pos):'bench', step); });
+    // ctSec = UNBROKEN time on court, goal spells included — only a real bench sit clears it (see the rest-nudge in simulate)
+    S.players.forEach(p=>{ if(p.pos){ p.sec+=step; p.shiftSec+=step; p.posSec+=step; p.ctSec=(p.ctSec||0)+step; p.zone[zoneOf(p.pos)]+=step; } else { p.restSec+=step; p.ctSec=0; } pushSeg(p, p.pos?zoneOf(p.pos):'bench', step); });
     if(!S.warn2 && S.halfLen*60>150 && S.elapsed>=S.halfLen*60-120 && S.elapsed<S.halfLen*60){ S.warn2=true; sfx('twomin'); toast('2 minutes to '+(S.phase==='h1'?'half-time':'full-time'),false); }
     if(!S.chimed && S.elapsed>=S.halfLen*60){ S.chimed=true; beep(); toast((S.phase==='h1'?'1st':'2nd')+' half target reached — clock keeps running, end the half when the ref does',false); renderClock(); }
     liveUpdate(); save();
@@ -812,7 +813,8 @@
     tickAt+=step*1000;                                                // keep the sub-second remainder → no drift
     advanceClock(step);
   }
-  function setRunning(run){ if(S.phase!=='h1'&&S.phase!=='h2')return; S.running=run; if(run){ tickAt=Date.now(); if(!timer)timer=setInterval(tick,1000); } else { if(timer){clearInterval(timer);timer=null;} } render(); save(); }
+  function setRunning(run){ if(S.phase!=='h1'&&S.phase!=='h2')return; if(run)ensurePlan();   // never start a game without a plan to prompt from
+    S.running=run; if(run){ tickAt=Date.now(); if(!timer)timer=setInterval(tick,1000); } else { if(timer){clearInterval(timer);timer=null;} } render(); save(); }
   function halfAction(){
     // snapshot the phase state so the transition can be undone (footer Undo or the toast)
     const hist={type:'phase',prev:{phase:S.phase,half:S.half,elapsed:S.elapsed,chimed:S.chimed,running:S.running}};
@@ -822,7 +824,10 @@
       // end 1st half → straight into the 2nd half, PAUSED at 0:00. Everyone rests through the break,
       // so shift/position timers start fresh; press ▶ (clock) to start the 2nd half when the ref does.
       hist.shifts=S.players.map(p=>({id:p.id,shiftSec:p.shiftSec,posSec:p.posSec}));
-      S.h1Secs=S.elapsed; S.players.forEach(p=>{ p.shiftSec=0; p.posSec=0; });
+      // the break is a real rest for everyone (fresh shift + cleared on-court run), but the KEEPER's goal stint
+      // carries over — otherwise a keeper who took the gloves late in the 1st half does another full interval
+      // after the break, i.e. ~2× the keeper time you asked for straddling half-time.
+      S.h1Secs=S.elapsed; S.players.forEach(p=>{ const wasGK=p.pos&&isGK(p); p.shiftSec=0; if(!wasGK)p.posSec=0; p.ctSec=0; });
       setRunning(false); S.half=2; S.phase='h2'; S.elapsed=0; S.chimed=false; S.warn2=false; S.lastSub=S.halfLen*60; beep();
       toast('Half-time — '+fmt(S.h1Secs)+' played. Tap ▶ to start the 2nd half',true); }
     else if(S.phase==='h2'){ setRunning(false); S.phase='ft'; beep(); toast('Full-time — '+S.scoreUs+'–'+S.scoreThem,true); captureSeasonGame(); }
@@ -1097,8 +1102,8 @@
   }
   function sub(onP,offP){
     pushMove('sub',[onP.id,offP.id]);
-    const slot=offP.pos; offP.pos=null; offP.shiftSec=0; offP.posSec=0; offP.restSec=0;
-    onP.pos=slot; onP.shiftSec=0; onP.posSec=0;
+    const slot=offP.pos; offP.pos=null; offP.shiftSec=0; offP.posSec=0; offP.restSec=0; offP.ctSec=0;   // benched = the on-court run is broken
+    onP.pos=slot; onP.shiftSec=0; onP.posSec=0; onP.ctSec=0;
     S.lastSub=gameElapsed();             // reset the rotation pace clock
     logSub({type:'sub', inId:onP.id, outId:offP.id, slot});
     S.sel=null; toast(`<b>${esc(onP.name)}</b> on at ${slot} · ${esc(offP.name)} off`,true);
@@ -1398,11 +1403,13 @@
     const T=computeTargets(), hasGoal=!!T.zs.goal, slots=slotDefs();
     // per-player projection state: sec=total minutes, goal/zdef/zatt=accrued time per zone (for role-share balance),
     // run=continuous OUTFIELD running load (GK-as-rest: a spell in goal discharges it; the bench clears it).
-    const st={}, proj={}; S.players.forEach(p=>{st[p.id]={pos:null,sec:0,shift:0,goal:0,zdef:0,zatt:0,rest:0,run:0}; proj[p.id]=[];});
+    const st={}, proj={}; S.players.forEach(p=>{st[p.id]={pos:null,sec:0,shift:0,goal:0,zdef:0,zatt:0,rest:0,run:0,onCt:0,gkRun:0}; proj[p.id]=[];});
     if(live){
       S.players.forEach(p=>{ const s=st[p.id]; s.pos=p.pos; s.sec=p.sec; s.shift=p.pos?p.shiftSec:0;
         s.goal=p.zone.goal||0; s.zdef=p.zone.def||0; s.zatt=(p.zone.att||0)+(p.zone.mid||0); s.rest=p.pos?0:(p.restSec||0);
-        s.run=(p.pos&&!isGK(p))?p.shiftSec:0; });   // running load ≈ current outfield stint; goalkeeping doesn't count as running
+        s.run=(p.pos&&!isGK(p))?p.shiftSec:0;       // running load ≈ current outfield stint; goalkeeping doesn't count as running
+        s.onCt=p.pos?(p.ctSec||0):0;                // unbroken time on court (goal included) — drives the "needs a real sit" nudge
+        s.gkRun=(p.pos&&isGK(p))?(p.posSec||0):0; });   // current keeper's unbroken goal stint
     } else {
       const used=new Set(), starters=strat.starters||{};
       slots.forEach(s=>{ const pid=starters[s.k]; if(pid!=null&&st[pid]&&!used.has(pid)){ st[pid].pos=s.k; used.add(pid);} });
@@ -1422,10 +1429,15 @@
     const paceN=id=>clampV(((T.tgt[id]||0)*(prev/totalGame)-st[id].sec)/C, -2, 2);
     const fitN=(p,z)=>(fitFor(p,z)-3)/2;
     const runN=id=>st[id].run/runNorm;
+    // A spell in goal bleeds the RUNNING load down, so a player who cycles court→goal→court can stay out
+    // almost the whole game without the run-nudge ever firing. This second signal counts unbroken time ON COURT
+    // (goal included) so "she hasn't actually sat down all game" surfaces on its own.
+    const ctNorm=C*3;                                // ≈1.0 after three shifts on court without a bench sit
+    const ctN=id=>clampV(st[id].onCt/ctNorm,0,2);
     const zAcc=(id,z)=> z==='def'?st[id].zdef:(z==='att'?st[id].zatt:0);
     const meanZ=z=>{ let s=0; S.players.forEach(p=>s+=zAcc(p.id,z)); return s/(S.players.length||1); };
     // OFF: ahead of pace (fairness), weakest-for-zone (win), plus a steepening nudge for anyone running too long.
-    const offScore=p=>{ const z=zoneOf(st[p.id].pos), r=runN(p.id); return (1-w)*(-paceN(p.id)) + w*(-fitN(p,z)) + 1.0*(r*r); };
+    const offScore=p=>{ const z=zoneOf(st[p.id].pos), r=runN(p.id), c=ctN(p.id); return (1-w)*(-paceN(p.id)) + w*(-fitN(p,z)) + 1.0*(r*r) + 0.8*(c*c); };
     // ON: behind pace (fairness), best-for-zone (win), plus a role-balance pull toward players light on THIS zone.
     // role balance is a gentle TIEBREAK only (weight 0.25, clamped ±1) so it can never override a real minutes gap:
     // minutes-fairness (paceN) stays the dominant pull — it just decides who fills a slot among similarly-owed players.
@@ -1434,17 +1446,22 @@
     const teamStrength=()=>S.players.reduce((s,p)=>s+(st[p.id].pos?fitFor(p,zoneOf(st[p.id].pos)):0),0);
     const ov=(a,b,c,d)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
     let prev=live?gameElapsed():0;
-    const advance=to=>{ const step=to-prev; if(step>0){ const strg=teamStrength(); area+=step*strg; earlyArea+=ov(prev,to,0,W)*strg; lateArea+=ov(prev,to,totalGame-W,totalGame)*strg; S.players.forEach(p=>{const s=st[p.id]; const z=s.pos?zoneOf(s.pos):'bench'; const a=proj[p.id]; const last=a[a.length-1]; if(last&&last.z===z)last.s+=step; else a.push({z,s:step}); if(s.pos){s.sec+=step; s.shift+=step; const zz=zoneOf(s.pos); if(zz==='goal'){s.goal+=step; s.run=Math.max(0,s.run-step*0.5);} else {s.run+=step; if(zz==='def')s.zdef+=step; else s.zatt+=step;}} else {s.rest+=step; s.run=0;}}); prev=to; } };
+    const advance=to=>{ const step=to-prev; if(step>0){ const strg=teamStrength(); area+=step*strg; earlyArea+=ov(prev,to,0,W)*strg; lateArea+=ov(prev,to,totalGame-W,totalGame)*strg; S.players.forEach(p=>{const s=st[p.id]; const z=s.pos?zoneOf(s.pos):'bench'; const a=proj[p.id]; const last=a[a.length-1]; if(last&&last.z===z)last.s+=step; else a.push({z,s:step}); if(s.pos){s.sec+=step; s.shift+=step; s.onCt+=step; const zz=zoneOf(s.pos); if(zz==='goal'){s.goal+=step; s.gkRun+=step; s.run=Math.max(0,s.run-step*0.5);} else {s.gkRun=0; s.run+=step; if(zz==='def')s.zdef+=step; else s.zatt+=step;}} else {s.rest+=step; s.run=0; s.onCt=0; s.gkRun=0;}}); prev=to; } };
     const events=[];
     const rotateOnce=()=>{
       const bench=S.players.filter(p=>!st[p.id].pos); if(!bench.length)return false;
       const mustFixFem=S.minF>0&&femOn()<S.minF&&bench.some(b=>b.sex==='f');
-      let outs=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal');
+      // Normally the keeper isn't a sub candidate (she rotates by position swap). But a player parked in goal is
+      // invisible to the welfare check AND goalkeeping bleeds her running load down — so someone can cycle
+      // court→goal→court all game and never be offered a real sit. Once she's been on court beyond the
+      // needs-a-sit threshold, put the keeper in the off-pool too and let a bench player come straight into goal.
+      let outs=S.players.filter(p=>st[p.id].pos&&(zoneOf(st[p.id].pos)!=='goal'||st[p.id].onCt>=ctNorm));
       if(mustFixFem) outs=outs.filter(p=>p.sex!=='f');
       if(!outs.length)return false;
       const offOrder=outs.slice().sort((a,b)=>offScore(b)-offScore(a)||st[b.id].run-st[a.id].run||a.id-b.id);
       for(const out of offOrder){ const z=zoneOf(st[out.id].pos);
         let pool=(mustFixFem?bench.filter(b=>b.sex==='f'):bench).filter(b=>legal(b,out));
+        if(z==='goal') pool=zoneCands(pool,'goal');   // coming straight on into goal — respect "won't play goal"
         if(!pool.length)continue;
         const rested=pool.filter(b=>st[b.id].rest>=minRest); if(rested.length)pool=rested;   // anti-thrash: prefer players who've had a real rest
         pool.sort((a,b)=>inScore(b,z)-inScore(a,z)||st[b.id].rest-st[a.id].rest||a.id-b.id);
@@ -1465,7 +1482,11 @@
       const htAt=htDone?Infinity:halfLen, at=Math.min(subB,gkB,htAt);
       if(at>=totalGame-10) break;
       advance(at);
-      if(at===htAt){ S.players.forEach(p=>{st[p.id].shift=0; st[p.id].run=0;}); htDone=true; subB=halfLen+C; gkB=hasGoal?halfLen+GKC:Infinity; continue; }
+      if(at===htAt){ const gkAtHt=S.players.find(p=>st[p.id].pos&&zoneOf(st[p.id].pos)==='goal');
+        S.players.forEach(p=>{st[p.id].shift=0; st[p.id].run=0; st[p.id].onCt=0;});   // the break rests everyone
+        htDone=true; subB=halfLen+C;
+        // keeper's goal stint CARRIES across the break — otherwise a late-1st-half keeper does a double interval
+        gkB=hasGoal? halfLen+Math.max(0, GKC-(gkAtHt?st[gkAtHt.id].gkRun:0)) : Infinity; continue; }
       if(hasGoal&&gkRotate&&at===gkB){
         // every GKC seconds the engine RE-PICKS the keeper: blend goal-time fairness with GK rating by the same
         // Win↔Even weight. Equal → whoever's kept least takes goal (share the rest). Win → the strongest keeper,
@@ -1542,6 +1563,18 @@
        <button type="button" class="menu-item" data-act="roster">Roster &amp; Settings</button>`
       +`<div class="menu-ver">Build ${(VERSION.match(/^\d+/)||[''])[0]}</div>`;
     $('#menuScrim').classList.add('open');
+  }
+  // The live prompts + cues project from the ACTIVE plan. Make sure one exists the moment the clock starts, so a
+  // coach who sets the team up in Roster & Settings and just presses play still gets rotation help (previously
+  // you only got prompts if you happened to open the Plan screen first — otherwise the whole game ran silent).
+  function ensurePlan(){
+    if(S.activeStrat!=null && S.strategies.some(x=>x.id===S.activeStrat)) return;
+    if(!S.strategies.length){ S.strategies.push(newStrategy('Game plan')); }
+    S.strategies.length=1;
+    const s=S.strategies[0];
+    s.formation=S.formation; s.shiftSec=S.shiftT||s.shiftSec; s.gkSec=S.gkT||s.gkSec;
+    s.starters=fillStarters(Object.assign({},currentStarters()));   // whatever is actually on court right now
+    S.activeStrat=s.id; selStrat=s.id;
   }
   function openStrat(){
     if(!S.strategies.length){ S.strategies.push(newStrategy('Game plan')); }
@@ -1776,7 +1809,7 @@
     $('#resetGame').addEventListener('click',e=>{ const b=e.currentTarget;
       if(!b.classList.contains('arm')){ b.classList.add('arm'); b.textContent='Tap again to reset'; setTimeout(()=>{ b.classList.remove('arm'); b.textContent='Reset game'; },2500); return; }
       b.classList.remove('arm'); b.textContent='Reset game';
-      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.warn2=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0;S.seasonCaptured=false;S.recLog=[];_recLogKey=''; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
+      S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.ctSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.warn2=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0;S.seasonCaptured=false;S.recLog=[];_recLogKey=''; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
     $('#rosterBody').addEventListener('click',e=>{
       if(e.target.dataset.f==='gktog'){ const p=P(+e.target.closest('[data-id]').dataset.id); p.gkOK = p.gkOK===false; drawRoster(); save(); render(); return; }
       const rr=e.target.closest('.rat-row');
