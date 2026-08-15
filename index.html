@@ -639,7 +639,7 @@
 <script>
 (function(){
   const KEY='goalGirls.v1', SEASON_KEY='goalGirls.season';   // "Goal Girls" storage (old crushControl.* keys are dropped — a clean flush)
-  const VERSION='51 · rest + keeper fixes';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='52 · stamina + win slider';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -1425,15 +1425,26 @@
     const clampV=(x,a,b)=>Math.max(a,Math.min(b,x));
     const minRest=Math.max(45, C);                   // ~a shift's rest before a player comes back on
     const runNorm=C*3;                               // running load ≈ 1.0 after three shifts of unbroken running
-    const w=Math.min(0.6, bias*0.6);                 // ratings weight capped at 0.6
+    // Ratings weight. sqrt(bias) so the middle of the slider actually does something — a linear ramp left the
+    // slider inert until the last quarter. Cap 0.4 keeps fairness the senior partner even at full Win:
+    // measured minutes gap strongest-vs-weakest ≈ 0% at Even, ~7% at half, ~28% at full Win.
+    const w=0.4*Math.sqrt(clampV(bias,0,1));
     const paceN=id=>clampV(((T.tgt[id]||0)*(prev/totalGame)-st[id].sec)/C, -2, 2);
-    const fitN=(p,z)=>(fitFor(p,z)-3)/2;
-    const runN=id=>st[id].run/runNorm;
+    // Ratings also get LOUDER toward the win end: at Even the gain is 1 (ratings barely separate anyone),
+    // at full Win it doubles, so a 5-rated player really does outrank a 1-rated one for their best role.
+    // Without this the fairness term swamped ratings at every slider position and the slider did almost nothing.
+    const fitGain=1+bias*0.3;
+    const fitN=(p,z)=>((fitFor(p,z)-3)/2)*fitGain;
+    // FIT = stamina. 3 is neutral; a low-FIT player builds running load faster (so they're offered a breather
+    // sooner and take shorter shifts), a high-FIT player can stay out longer. It never changes their MINUTES
+    // target — everyone still gets a fair share, it just changes how that share is broken up.
+    const stamF=p=>1+(3-clampV((p&&p.rat&&p.rat.fit)||3,1,5))*0.15;   // fit1→1.30 … fit5→0.70
+    const runN=id=>st[id].run/runNorm*stamF(P(id));
     // A spell in goal bleeds the RUNNING load down, so a player who cycles court→goal→court can stay out
     // almost the whole game without the run-nudge ever firing. This second signal counts unbroken time ON COURT
     // (goal included) so "she hasn't actually sat down all game" surfaces on its own.
     const ctNorm=C*3;                                // ≈1.0 after three shifts on court without a bench sit
-    const ctN=id=>clampV(st[id].onCt/ctNorm,0,2);
+    const ctN=id=>clampV(st[id].onCt/ctNorm*stamF(P(id)),0,2);
     const zAcc=(id,z)=> z==='def'?st[id].zdef:(z==='att'?st[id].zatt:0);
     const meanZ=z=>{ let s=0; S.players.forEach(p=>s+=zAcc(p.id,z)); return s/(S.players.length||1); };
     // OFF: ahead of pace (fairness), weakest-for-zone (win), plus a steepening nudge for anyone running too long.
@@ -1478,10 +1489,19 @@
       gkB=hasGoal? prev+Math.max(0,GKC-(gk0?gk0.posSec:0)) : Infinity;
       htDone=(S.half===2);   // 2nd-half reset already happened in reality
     } else { subB=C; gkB=hasGoal?GKC:Infinity; htDone=false; }
+    // Dropping below the ♀ minimum (an injury, someone leaving, a manual swap) shouldn't wait for the next
+    // scheduled shift — that left the team short for up to a full shift even with a perfectly attentive coach.
+    // When it's breached AND fixable from the bench, the fix becomes due immediately.
+    const femFixable=()=>S.minF>0 && S.players.filter(p=>st[p.id].pos&&p.sex==='f').length<S.minF
+                        && S.players.some(p=>!st[p.id].pos&&p.sex==='f');
+    let urgentAt=-1;
     while(guard++<400){
-      const htAt=htDone?Infinity:halfLen, at=Math.min(subB,gkB,htAt);
+      const htAt=htDone?Infinity:halfLen;
+      const urgent=femFixable() && Math.round(prev)!==urgentAt;   // once per instant, so a failed fix can't spin
+      const at=urgent ? prev : Math.min(subB,gkB,htAt);
       if(at>=totalGame-10) break;
       advance(at);
+      if(urgent){ urgentAt=Math.round(prev); if(rotateOnce()){ subB=prev+C; continue; } }
       if(at===htAt){ const gkAtHt=S.players.find(p=>st[p.id].pos&&zoneOf(st[p.id].pos)==='goal');
         S.players.forEach(p=>{st[p.id].shift=0; st[p.id].run=0; st[p.id].onCt=0;});   // the break rests everyone
         htDone=true; subB=halfLen+C;
@@ -1680,7 +1700,7 @@
   function drawFmSettings(){ $('#fmSettings').innerHTML=FORMATION_ORDER.map(id=>`<button type="button" data-fm="${id}" class="${S.formation===id?'on':''}">${FORMATIONS[id].label}</button>`).join(''); }
   function drawSoundTog(){ $('#soundTog').querySelectorAll('[data-snd]').forEach(b=>b.classList.toggle('on',(b.dataset.snd==='1')===soundOn())); }
   function openRoster(){ $('#halfLen').value=S.halfLen; $('#minF').value=S.minF; $('#buildVer').textContent=VERSION; drawFmSettings(); drawSoundTog(); drawRoster(); $('#rosterScrim').classList.add('open'); }
-  const RATLBL={att:'ATT',def:'DEF',gk:'GK',fit:'FIT'};
+  const RATLBL={att:'ATT',def:'DEF',gk:'GK',fit:'STAM'};   // STAM = stamina: how long they last before needing a breather
   const rosterOpen=new Set();   // which players have their ratings panel expanded (ratings hidden by default)
   function drawRoster(){
     $('#rosterBody').innerHTML=S.players.map(p=>{
