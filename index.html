@@ -396,6 +396,12 @@
   .rat-row .rbar{position:absolute; left:0; bottom:0; height:3px; background:var(--acc); opacity:.7;}
   .rat-row .rm-wide{flex:0 0 auto; height:36px; padding:0 12px; border-radius:9px; border:1px solid var(--line); background:var(--board); color:var(--muted-2); font-size:12px; font-weight:700;}
   .rat-row .rm-wide.arm{color:var(--att); border-color:rgba(255,115,104,.55);}
+  .gk-row{display:none; align-items:center; justify-content:space-between; gap:8px; padding:0 0 8px;}
+  .roster-entry.open .gk-row{display:flex;}
+  .gk-row .gk-lbl{font-size:12px; font-weight:700; color:var(--muted-2); display:flex; align-items:center; gap:6px;}
+  .fbadge.gk{border-color:var(--gk); color:var(--gk);}
+  .gktog{height:32px; padding:0 12px; border-radius:9px; border:1px solid transparent; background:var(--gk); color:#0d0f1a; font-size:12px; font-weight:700;}
+  .gktog.off{background:var(--board); color:var(--muted); border-color:var(--line);}
   .roster-row .exp{flex:0 0 44px; width:44px; height:44px; padding:0; border-radius:10px; border:1px solid var(--line); background:var(--board); color:var(--muted-2); font-size:13px; transition:transform .15s ease;}
   .roster-entry.open .exp{transform:rotate(180deg); color:var(--acc); border-color:var(--acc);}
 
@@ -632,7 +638,7 @@
 <script>
 (function(){
   const KEY='goalGirls.v1', SEASON_KEY='goalGirls.season';   // "Goal Girls" storage (old crushControl.* keys are dropped — a clean flush)
-  const VERSION='47 · fresh storage';   // visible in the burger menu — bumped each deploy so you can confirm the live build
+  const VERSION='48 · goalie opt-out';   // visible in the burger menu — bumped each deploy so you can confirm the live build
   const ZCLASS={goal:'z-gk',def:'z-def',mid:'z-mid',att:'z-att'};
   const ROLECLASS={goal:'role-gk',def:'role-def',mid:'role-mid',att:'role-att'};
   const GK_ZORDER=['goal','def','mid','att'];
@@ -706,7 +712,7 @@
   let fmOpen=false; // transient UI state — deliberately outside S so it is never persisted
   const newPref=()=>({goal:1,def:1,mid:1,att:1});
   const newRat=()=>({att:3,def:3,gk:3,fit:3});   // 1–5 skill/fitness ratings — the framework the strategy planner weights by
-  const newPlayer=(id,name,pos,sex)=>({id,name,pos,sex:sex||'m',sec:0,shiftSec:0,posSec:0,restSec:0,goals:0,zone:{goal:0,def:0,mid:0,att:0},seg:[],rat:newRat(),pref:newPref()});
+  const newPlayer=(id,name,pos,sex)=>({id,name,pos,sex:sex||'m',sec:0,shiftSec:0,posSec:0,restSec:0,goals:0,zone:{goal:0,def:0,mid:0,att:0},seg:[],rat:newRat(),pref:newPref(),gkOK:true});
   const fresh=()=>({
     players:[
       newPlayer(1,'Mia','F1','f'), newPlayer(2,'Jack','F2'),
@@ -730,7 +736,7 @@
         S.events=S.events||[]; S.nextEid=S.nextEid||1;
         S.phase=S.phase||(S.half===2?'h2':'h1'); S.chimed=S.chimed||false; S.warn2=S.warn2||false; if(S.sound===undefined)S.sound=true;
         S.formation=S.formation||'2-2';
-        S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; if(!Array.isArray(p.seg))p.seg=[]; p.rat=Object.assign(newRat(),p.rat||{}); p.pref=Object.assign(newPref(),p.pref||{}); if(p.sex!=='f')p.sex='m';});
+        S.players.forEach(p=>{p.zone=p.zone||{goal:0,def:0,mid:0,att:0}; if(p.zone.mid===undefined)p.zone.mid=0; if(p.restSec===undefined)p.restSec=0; if(!Array.isArray(p.seg))p.seg=[]; p.rat=Object.assign(newRat(),p.rat||{}); p.pref=Object.assign(newPref(),p.pref||{}); if(p.gkOK===undefined)p.gkOK=true; if(p.sex!=='f')p.sex='m';});
         if(S.h1Secs===undefined)S.h1Secs=0;
         if(!Array.isArray(S.strategies))S.strategies=[]; if(S.activeStrat===undefined)S.activeStrat=null; if(!S.nextStratId)S.nextStratId=1;
         if(S.minF===undefined)S.minF=2;
@@ -750,6 +756,9 @@
   const inSlot=pos=>S.players.find(p=>p.pos===pos);
   const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const isGK=p=>zoneOf(p.pos)==='goal';
+  const gkEligible=p=>!p||p.gkOK!==false;   // a player flagged "won't play goal" is never auto-picked as keeper
+  // candidates for a slot: for the goal slot, drop no-goal players — but fall back to the full pool if nobody else can keep
+  const zoneCands=(pool,zone)=>{ if(zone!=='goal') return pool; const ok=pool.filter(gkEligible); return ok.length?ok:pool; };
   const cadence=()=>Math.max(30,S.shiftT||90);            // one knob: target shift length
   // shift clock turns amber only when THIS player is actually due to come off:
   // with a plan active that's the plan's due-now moment (not the blanket shift length); otherwise fall back to the shift target.
@@ -1167,7 +1176,7 @@
     const slots=slotDefs(), used=new Set(), chosen={}, T=computeTargets();
     const owedN=p=>Math.max(0,-(paceDiff(p,T)))/120;                 // >0 = behind pace
     const score=(p,z)=>fitFor(p,z)+0.25*owedN(p);                    // strongest first; owed breaks ties
-    slots.forEach(s=>{ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>score(b,s.zone)-score(a,s.zone)||a.id-b.id)[0]; if(c){chosen[s.k]=c.id; used.add(c.id);} });
+    slots.forEach(s=>{ const c=zoneCands(S.players.filter(p=>!used.has(p.id)),s.zone).sort((a,b)=>score(b,s.zone)-score(a,s.zone)||a.id-b.id)[0]; if(c){chosen[s.k]=c.id; used.add(c.id);} });
     if(S.minF>0){ let guard=0; const femN=()=>Object.values(chosen).filter(id=>P(id)&&P(id).sex==='f').length;
       while(femN()<S.minF && guard++<6){
         const mSlot=slots.find(s=>s.zone!=='goal'&&P(chosen[s.k])&&P(chosen[s.k]).sex==='m'); if(!mSlot) break;
@@ -1303,9 +1312,9 @@
   const RATATTR={goal:'gk',def:'def',att:'att'};
   function fitFor(p,z){ const r=Object.assign(newRat(),p&&p.rat); if(z==='goal')return r.gk; if(z==='def')return r.def; if(z==='mid')return (r.att+r.def)/2; return r.att; }
   // backfill any empty slot (e.g. GK) with the best available unused player so a plan is never short a position
-  function fillStarters(st){ const used=new Set(Object.values(st).filter(v=>v!=null)); slotDefs().forEach(s=>{ if(st[s.k]==null){ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} } }); return st; }
+  function fillStarters(st){ const used=new Set(Object.values(st).filter(v=>v!=null)); slotDefs().forEach(s=>{ if(st[s.k]==null){ const c=zoneCands(S.players.filter(p=>!used.has(p.id)),s.zone).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} } }); return st; }
   function currentStarters(){ const st={}; slotDefs().forEach(s=>{ const p=inSlot(s.k); if(p)st[s.k]=p.id; }); return fillStarters(st); }
-  function autoStarters(){ const used=new Set(), st={}; slotDefs().forEach(s=>{ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} }); return st; }
+  function autoStarters(){ const used=new Set(), st={}; slotDefs().forEach(s=>{ const c=zoneCands(S.players.filter(p=>!used.has(p.id)),s.zone).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[s.k]=c.id; used.add(c.id);} }); return st; }
   function defaultStarters(){ const cur=currentStarters(); return Object.keys(cur).length?cur:autoStarters(); }
   function newStrategy(name){ return {id:S.nextStratId++, name:name||'Plan', formation:S.formation, unit:'individual', shiftSec:S.shiftT||180, gkSec:S.gkT||300, gkPlan:'rotate', bias:0.5, starters:defaultStarters()}; }
   const curStrat=()=>S.strategies.find(x=>x.id===selStrat);
@@ -1329,7 +1338,7 @@
     } else {
       const used=new Set(), starters=strat.starters||{};
       slots.forEach(s=>{ const pid=starters[s.k]; if(pid!=null&&st[pid]&&!used.has(pid)){ st[pid].pos=s.k; used.add(pid);} });
-      slots.forEach(s=>{ if(!S.players.some(p=>st[p.id].pos===s.k)){ const c=S.players.filter(p=>!used.has(p.id)).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[c.id].pos=s.k; used.add(c.id);} } });
+      slots.forEach(s=>{ if(!S.players.some(p=>st[p.id].pos===s.k)){ const c=zoneCands(S.players.filter(p=>!used.has(p.id)),s.zone).sort((a,b)=>fitFor(b,s.zone)-fitFor(a,s.zone)||a.id-b.id)[0]; if(c){st[c.id].pos=s.k; used.add(c.id);} } });
     }
     const femOn=()=>S.players.filter(p=>st[p.id].pos&&p.sex==='f').length;
     const legal=(inP,outP)=>{ if(!S.minF)return true; const cur=femOn(); const nx=cur+(inP.sex==='f'?1:0)-(outP.sex==='f'?1:0); return nx>=S.minF||nx>=cur; };
@@ -1395,7 +1404,7 @@
         // though the growing fairness penalty still gives them a breather eventually. Only swaps if it's an upgrade.
         const gk=S.players.find(p=>st[p.id].pos&&zoneOf(st[p.id].pos)==='goal');
         const gkScore=id=>(1-w)*(-st[id].goal/C)+w*fitN(P(id),'goal');
-        const best=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal').sort((a,b)=>gkScore(b.id)-gkScore(a.id)||st[a.id].goal-st[b.id].goal||a.id-b.id)[0];
+        const best=S.players.filter(p=>st[p.id].pos&&zoneOf(st[p.id].pos)!=='goal'&&gkEligible(p)).sort((a,b)=>gkScore(b.id)-gkScore(a.id)||st[a.id].goal-st[b.id].goal||a.id-b.id)[0];
         if(gk&&best&&gkScore(best.id)>gkScore(gk.id)){ const g=st[gk.id].pos,c=st[best.id].pos; st[gk.id].pos=c; st[best.id].pos=g; st[gk.id].shift=0; st[best.id].shift=0; events.push({t:Math.round(prev),half:prev<halfLen?1:2,kind:'gk',inId:best.id,outId:gk.id}); }
         gkB=at+GKC; continue;
       }
@@ -1584,6 +1593,7 @@
           <button type="button" class="${cls}" data-f="pos">${lbl}</button>
           <button type="button" class="exp" data-f="exp" aria-label="Ratings">▾</button></div>
         <div class="rat-row" data-id="${p.id}">${rats}<button type="button" class="rm-wide" data-f="rm">Remove</button></div>
+        <div class="gk-row" data-id="${p.id}"><span class="gk-lbl"><span class="fbadge gk">GK</span> Goalkeeper</span><button type="button" class="gktog${p.gkOK===false?' off':''}" data-f="gktog">${p.gkOK===false?"Won't play goal":'Can go in goal'}</button></div>
       </div>`;
     }).join('');
   }
@@ -1699,6 +1709,7 @@
       b.classList.remove('arm'); b.textContent='Reset game';
       S.players.forEach(p=>{p.sec=0;p.shiftSec=0;p.posSec=0;p.restSec=0;p.goals=0;p.zone={goal:0,def:0,mid:0,att:0};p.seg=[];}); S.scoreUs=0;S.scoreThem=0;S.half=1;S.elapsed=0;S.phase='h1';S.chimed=false;S.warn2=false;S.h1Secs=0;S.sel=null;S.history=[];S.events=[];S.nextEid=1;S.lastSub=0;S.seasonCaptured=false; clearLock(); pendingOverride=null; setRunning(false); $('#rosterScrim').classList.remove('open'); render(); save(); });
     $('#rosterBody').addEventListener('click',e=>{
+      if(e.target.dataset.f==='gktog'){ const p=P(+e.target.closest('[data-id]').dataset.id); p.gkOK = p.gkOK===false; drawRoster(); save(); render(); return; }
       const rr=e.target.closest('.rat-row');
       if(rr){ const p=P(+rr.dataset.id);
         const b=e.target.closest('.ratbtn'); if(b){ const k=b.dataset.k; p.rat=Object.assign(newRat(),p.rat); p.rat[k]=p.rat[k]>=5?1:p.rat[k]+1; drawRoster(); save(); return; }
